@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lausanne Monthly Calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&family=Open+Sans+Condensed:wght@300;700&family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* Layout: setup sidebar on the left, live paper preview on the right; print shows only the paper. */
+:root {
+  --bg: #eef1f5;
+  --panel: #ffffff;
+  --fg: #1d2733;
+  --muted: #5d6b7a;
+  --line: #d5dce4;
+  --accent: #23578a;
+  --accent-fg: #ffffff;
+  --field: #f7f9fb;
+  --danger: #b23a3a;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Verdana", "Segoe UI", sans-serif;
+  /* paper is always printed white, so its colors are fixed */
+  --paper: #ffffff;
+  --ink: #1b2430;
+  --ink-soft: #66727f;
+  --rule: #c9d1da;
+  --offmonth: #f3f5f7;
+  /* Lausanne brand: Lausanne blue, Lausanne gold; Open Sans Condensed stands in for Univers Condensed */
+  --lc-blue: #00274c;
+  --lc-gold: #FFCB05;
+  --font-brand: "Open Sans", Arial, sans-serif;
+  --font-cond: "Open Sans Condensed", "Univers Condensed", "Arial Narrow", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171d; --panel: #1b222b; --fg: #e4e9ef; --muted: #9aa7b4; --line: #2e3844;
+    --accent: #6ea8dc; --accent-fg: #0d1620; --field: #141a21; --danger: #e07a7a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171d; --panel: #1b222b; --fg: #e4e9ef; --muted: #9aa7b4; --line: #2e3844;
+  --accent: #6ea8dc; --accent-fg: #0d1620; --field: #141a21; --danger: #e07a7a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font-body); }
+
+.app { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; min-height: 100vh; }
+.side { background: var(--panel); border-right: 1px solid var(--line); padding: 20px 20px 60px; overflow-y: auto; max-height: 100vh; position: sticky; top: 0; }
+.main { padding: 20px 28px 40px; min-width: 0; }
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  .side { max-height: none; position: static; border-right: 0; border-bottom: 1px solid var(--line); padding-inline: 16px; }
+  .main { padding-inline: 16px; }
+}
+
+h1 { font: 800 22px/1.15 var(--font-display); margin: 0 0 4px; text-wrap: balance; }
+.lede { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+
+details.sec { border-top: 1px solid var(--line); padding: 12px 0; }
+details.sec > summary { cursor: pointer; font: 600 16px/1.3 var(--font-display); list-style: none; display: flex; justify-content: space-between; align-items: center; }
+details.sec > summary::-webkit-details-marker { display: none; }
+details.sec > summary::after { content: "+"; color: var(--muted); font-weight: 400; font-size: 20px; }
+details.sec[open] > summary::after { content: "–"; }
+.sec-body { display: grid; gap: 12px; padding-top: 12px; }
+
+label.f { display: grid; gap: 4px; font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: .01em; }
+input[type=text], input[type=date], input[type=month], input[type=number], select, textarea {
+  font: 15px var(--font-body); color: var(--fg); background: var(--field);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100%; min-width: 0;
+}
+textarea { resize: vertical; min-height: 72px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.row > * { flex: 1 1 0; min-width: 0; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+.status { font-size: 13px; padding: 8px 10px; border-radius: 6px; background: var(--field); border: 1px solid var(--line); }
+.status.ok { border-color: #3f8f5a; }
+.status.err { border-color: var(--danger); color: var(--danger); }
+
+button, .btn {
+  font: 700 14px var(--font-body); border-radius: 6px; padding: 8px 12px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--field); color: var(--fg);
+}
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.ghost { background: transparent; }
+button.danger { color: var(--danger); }
+button.icon { padding: 6px 9px; line-height: 1; }
+
+.classes { display: grid; gap: 6px; }
+.class-row { display: grid; grid-template-columns: 52px 1fr 1fr; gap: 6px; align-items: center; }
+.class-head { display: grid; grid-template-columns: 52px 1fr 1fr; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.subjects { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.subj { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; cursor: pointer; }
+.subj input[type=color] { width: 28px; height: 26px; padding: 1px; border: 1px solid var(--line); border-radius: 5px; background: var(--field); }
+.class-row .dn { font-weight: 700; font-size: 13px; color: var(--muted); }
+
+.specials { display: grid; gap: 8px; }
+.sp-row { display: grid; grid-template-columns: 128px 1fr 104px 32px; gap: 6px; align-items: center; }
+@media (max-width: 420px) { .sp-row { grid-template-columns: 1fr 1fr; } }
+
+.logo-box { display: flex; gap: 10px; align-items: center; }
+.logo-box img { max-height: 48px; max-width: 120px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.toolbar .month-nav { display: flex; gap: 6px; align-items: center; }
+.toolbar .month-nav input { width: 170px; }
+.toolbar .spacer { flex: 1; }
+.print-hint { font-size: 13px; color: var(--muted); }
+
+.preview-wrap { position: relative; }
+.preview-scale { transform-origin: top left; }
+
+/* ---------- Printed page ---------- */
+.page {
+  width: 11in; height: 8.5in; padding: .4in .45in;
+  background: var(--paper); color: var(--ink);
+  font-family: var(--font-brand);
+  display: flex; flex-direction: column; gap: .12in;
+  box-shadow: 0 2px 12px rgba(20,30,45,.18);
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  overflow: hidden;
+}
+.page.portrait { width: 8.5in; height: 11in; }
+.page.a4 { width: 297mm; height: 210mm; }
+.page.a4.portrait { width: 210mm; height: 297mm; }
+
+.p-head { display: grid; grid-template-columns: 1.3in 1fr auto; gap: .2in; align-items: center; }
+.p-logo { height: .85in; display: flex; align-items: center; }
+.p-logo img { max-height: .85in; max-width: 1.3in; object-fit: contain; }
+.p-logo .ph { width: .85in; height: .85in; border: 1.5px dashed var(--rule); border-radius: 50%; display: grid; place-items: center; font-size: 9pt; color: var(--ink-soft); text-align: center; line-height: 1.1; }
+.p-title { text-align: center; }
+.p-month { font: 700 32pt/1 var(--font-cond); color: var(--lc-blue); text-transform: uppercase; letter-spacing: .01em; padding-bottom: 3px; border-bottom: 4px solid var(--lc-gold); display: inline-block; }
+.p-sub { font-family: var(--font-cond); font-size: 10.5pt; font-weight: 700; color: var(--lc-blue); text-transform: uppercase; letter-spacing: .16em; margin-top: 5px; }
+.p-school { font-size: 10pt; color: var(--ink-soft); margin-top: 2px; }
+.p-teacher { text-align: right; font-size: 10.5pt; line-height: 1.35; min-width: 1.9in; }
+.p-teacher b { font-family: var(--font-cond); font-size: 14pt; color: var(--lc-blue); display: block; }
+.p-student { margin-top: 6px; font-size: 10pt; color: var(--ink-soft); white-space: nowrap; }
+.p-student span { display: inline-block; width: 1.6in; border-bottom: 1px solid var(--ink); }
+
+.p-grid { flex: 1; display: grid; border: 1.5px solid var(--lc-blue); border-radius: 6px; overflow: hidden; min-height: 0; }
+.p-dow { background: var(--lc-blue); color: #fff; font-weight: 700; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .1em; text-align: center; padding: 4px 0; }
+.p-cell { background: var(--paper); border-right: 1px solid var(--rule); border-top: 1px solid var(--rule); padding: 4px 6px; display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: hidden; position: relative; }
+.p-cell.last-col { border-right: 0; }
+.p-cell.off { background: var(--offmonth); }
+.p-cell.off .p-date { color: #b0b8c1; }
+.p-top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
+.p-date { font: 700 15pt/1 var(--font-cond); color: var(--lc-blue); }
+.p-day { color: var(--lc-blue); font-size: 8pt; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border-radius: 99px; border: 1px solid currentColor; white-space: nowrap; }
+.p-class { font-weight: 700; font-size: 11pt; line-height: 1.15; padding: 2px 5px; border-radius: 4px; }
+.p-nos { font-weight: 700; font-size: 10.5pt; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .05em; }
+.p-cell.noschool { background: repeating-linear-gradient(135deg, #fff 0 6px, #f1f3f5 6px 12px); }
+.p-sp { font-size: 8.5pt; line-height: 1.2; display: flex; gap: 3px; align-items: flex-start; }
+.p-sp svg { flex: none; width: 9pt; height: 9pt; margin-top: 1px; }
+.p-sp.wk { color: var(--ink-soft); }
+
+.p-foot { display: grid; grid-template-columns: 1fr; gap: .08in; }
+.p-legend { font-family: var(--font-cond); display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 9pt; justify-content: center; }
+.p-legend span { display: inline-flex; gap: 5px; align-items: center; }
+.p-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.p-agree { border: 1.5px solid var(--lc-blue); border-radius: 6px; overflow: hidden; }
+.p-agree h3 { margin: 0; padding: 3px 12px; background: #6cbcd0; color: var(--lc-blue); font: 700 11pt/1.2 var(--font-cond); text-align: center; }
+.p-agree p { margin: 0; padding: 5px 12px 6px; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 26px; color: var(--lc-blue); font: 700 15pt/1.15 var(--font-cond); }
+
+.bw .p-class { background: transparent !important; color: var(--ink) !important; padding-left: 0; }
+.bw .p-day { color: var(--ink); }
+
+@media print {
+  html, body { background: #fff !important; }
+  .side, .toolbar, .no-print { display: none !important; }
+  .app { display: block; }
+  .main { padding: 0; }
+  .preview-wrap { height: auto !important; }
+  .preview-scale { transform: none !important; }
+  .page { box-shadow: none; margin: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<style id="page-size">@page { size: letter landscape; margin: 0; }</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <h1>Lausanne Monthly Calendar</h1>
+    <p class="lede">Fill in your details once. Your settings stay in this browser, so next month you only add the special days.</p>
+
+    <details class="sec" open>
+      <summary>School &amp; teacher</summary>
+      <div class="sec-body">
+        <label class="f">Teacher name<input type="text" id="teacherName"></label>
+        <label class="f">Class or grade (optional)<input type="text" id="homeroom"></label>
+        <label class="f">Calendar subtitle (optional)<input type="text" id="subtitle" placeholder="e.g. Behavior Calendar"></label>
+        <label class="f">School name (optional)<input type="text" id="schoolName"></label>
+        <div class="f" style="display:grid;gap:4px">
+          <span style="font-size:13px;font-weight:700;color:var(--muted)">School logo</span>
+          <div class="logo-box">
+            <img id="logoThumb" alt="" hidden>
+            <label class="btn" for="logoFile">Choose image…</label>
+            <input type="file" id="logoFile" accept="image/*" hidden>
+            <button class="ghost danger" id="logoClear" type="button" hidden>Remove</button>
+          </div>
+        </div>
+        <label class="f">Essential agreement heading<input type="text" id="agreeTitle"></label>
+        <label class="f">Essential agreement<textarea id="agreeText" rows="4"></textarea></label>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary>Co-curricular schedule</summary>
+      <div class="sec-body">
+        <div class="row">
+          <label class="f">Days in rotation<input type="number" id="rotLen" min="2" max="10"></label>
+          <span></span>
+        </div>
+        <div class="class-head"><span></span><span>Class</span><span>Second class</span></div>
+        <div class="classes" id="classes"></div>
+        <p class="hint">Pick “—” for no class. Colors are shared by every day that subject appears:</p>
+        <div class="subjects" id="subjects"></div>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary>Rotation days</summary>
+      <div class="sec-body">
+        <p class="hint">The Lower School rotation for 2026–27 is already built in. To use a different one, upload a spreadsheet, or copy the date column and the day column and paste them below. Each row needs a date and a day number (for example <code>10/5/2026 &nbsp; Day 3</code>).</p>
+        <div class="row">
+          <label class="btn" for="rotFile" style="text-align:center">Upload spreadsheet…</label>
+          <input type="file" id="rotFile" accept=".xlsx,.xls,.csv,.tsv,.txt" hidden>
+          <label class="f">Date order<select id="dateOrder"><option value="mdy">Month/Day</option><option value="dmy">Day/Month</option></select></label>
+        </div>
+        <textarea id="rotPaste" rows="4" placeholder="Paste rows here"></textarea>
+        <div class="row">
+          <button type="button" id="rotUse">Use pasted rows</button>
+          <button type="button" class="ghost" id="rotRestore">Use school rotation</button>
+          <button type="button" class="ghost danger" id="rotClear">Clear</button>
+        </div>
+        <div class="status" id="rotStatus"></div>
+        <p class="hint" style="margin-top:4px"><b>No spreadsheet?</b> Give one known day and the calendar counts forward, skipping weekends and “No school” days.</p>
+        <div class="row">
+          <label class="f">Date<input type="date" id="anchorDate"></label>
+          <label class="f">is Day<input type="number" id="anchorDay" min="1" max="10"></label>
+        </div>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary>Special days this month</summary>
+      <div class="sec-body">
+        <div class="specials" id="specials"></div>
+        <button type="button" id="spAdd">Add a special day</button>
+        <p class="hint">“No school” days are left out of the rotation count when the calendar counts days for you.</p>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary>Page options</summary>
+      <div class="sec-body">
+        <div class="row">
+          <label class="f">Paper<select id="paper"><option value="letter">US Letter</option><option value="a4">A4</option></select></label>
+          <label class="f">Orientation<select id="orient"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select></label>
+        </div>
+        <div class="row">
+          <label class="f">Ink<select id="ink"><option value="color">Color</option><option value="bw">Black &amp; white</option></select></label>
+          <label class="f">Days shown<select id="weekends"><option value="no">Mon – Fri</option><option value="yes">Sun – Sat</option></select></label>
+        </div>
+        <label class="f" style="display:flex;gap:8px;align-items:center;font-weight:400;color:var(--fg)"><input type="checkbox" id="studentLine"> Add a “Student name” line</label>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary>Save &amp; share settings</summary>
+      <div class="sec-body">
+        <p class="hint">Save a settings file to back up your setup or give a colleague the same logo, agreement and rotation. They can open it here and change the teacher name and classes.</p>
+        <div class="row">
+          <button type="button" id="saveFile">Save settings file</button>
+          <label class="btn" for="openFile" style="text-align:center">Open settings file…</label>
+          <input type="file" id="openFile" accept=".json,application/json" hidden>
+        </div>
+        <div class="row">
+          <button type="button" class="ghost" id="loadExample">Load example</button>
+          <button type="button" class="ghost danger" id="clearAll">Clear my entries</button>
+        </div>
+      </div>
+    </details>
+  </aside>
+
+  <main class="main">
+    <div class="toolbar">
+      <div class="month-nav">
+        <button type="button" class="icon" id="prevM" aria-label="Previous month">‹</button>
+        <input type="month" id="month" aria-label="Month">
+        <button type="button" class="icon" id="nextM" aria-label="Next month">›</button>
+      </div>
+      <span class="spacer"></span>
+      <span class="print-hint" id="printHint">Prints one page. Turn off “Headers and footers” in the print dialog.</span>
+      <button type="button" id="printBtn">Print calendar</button>
+      <button type="button" class="primary" id="pdfBtn">Download PDF</button>
+    </div>
+    <div class="preview-wrap" id="pwrap"><div class="preview-scale" id="pscale"><div class="page" id="page"></div></div></div>
+  </main>
+</div>
+
+<script>
+/* School defaults: Lausanne logo and the LS rotation (Aug 10, 2026 – May 28, 2027) */
+const SCHOOL = {"schoolName":"Lausanne Collegiate School","logo":"data:image/jpeg;base64,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","rotation":{"2026-08-10":1,"2026-08-11":2,"2026-08-12":3,"2026-08-13":4,"2026-08-14":5,"2026-08-17":6,"2026-08-18":7,"2026-08-19":1,"2026-08-20":2,"2026-08-21":3,"2026-08-24":4,"2026-08-25":5,"2026-08-26":6,"2026-08-27":7,"2026-08-28":1,"2026-08-31":2,"2026-09-01":3,"2026-09-02":4,"2026-09-03":5,"2026-09-04":6,"2026-09-08":7,"2026-09-09":1,"2026-09-10":2,"2026-09-11":3,"2026-09-14":4,"2026-09-15":5,"2026-09-16":6,"2026-09-17":7,"2026-09-18":1,"2026-09-21":2,"2026-09-22":3,"2026-09-23":4,"2026-09-24":5,"2026-09-28":6,"2026-09-29":7,"2026-09-30":1,"2026-10-01":2,"2026-10-02":3,"2026-10-05":4,"2026-10-06":5,"2026-10-07":6,"2026-10-13":7,"2026-10-14":1,"2026-10-15":2,"2026-10-16":3,"2026-10-19":4,"2026-10-20":5,"2026-10-21":6,"2026-10-22":7,"2026-10-23":1,"2026-10-26":2,"2026-10-27":3,"2026-10-28":4,"2026-10-29":5,"2026-10-30":6,"2026-11-02":7,"2026-11-03":1,"2026-11-04":2,"2026-11-05":3,"2026-11-09":4,"2026-11-10":5,"2026-11-11":6,"2026-11-12":7,"2026-11-13":1,"2026-11-16":2,"2026-11-17":3,"2026-11-18":4,"2026-11-19":5,"2026-11-20":6,"2026-11-30":7,"2026-12-01":1,"2026-12-02":2,"2026-12-03":3,"2026-12-04":4,"2026-12-07":5,"2026-12-08":6,"2026-12-09":7,"2026-12-10":1,"2026-12-11":2,"2026-12-14":3,"2026-12-15":4,"2026-12-16":5,"2026-12-17":6,"2026-12-18":7,"2027-01-04":1,"2027-01-05":2,"2027-01-06":3,"2027-01-07":4,"2027-01-08":5,"2027-01-11":6,"2027-01-12":7,"2027-01-13":1,"2027-01-14":2,"2027-01-15":3,"2027-01-19":4,"2027-01-20":5,"2027-01-21":6,"2027-01-25":7,"2027-01-26":1,"2027-01-27":2,"2027-01-28":3,"2027-01-29":4,"2027-02-01":5,"2027-02-02":6,"2027-02-03":7,"2027-02-04":1,"2027-02-05":2,"2027-02-08":3,"2027-02-09":4,"2027-02-10":5,"2027-02-11":6,"2027-02-16":7,"2027-02-17":1,"2027-02-18":2,"2027-02-19":3,"2027-02-22":4,"2027-02-23":5,"2027-02-24":6,"2027-02-25":7,"2027-02-26":1,"2027-03-01":2,"2027-03-02":3,"2027-03-03":4,"2027-03-04":5,"2027-03-05":6,"2027-03-15":7,"2027-03-16":1,"2027-03-17":2,"2027-03-18":3,"2027-03-19":4,"2027-03-22":5,"2027-03-23":6,"2027-03-24":7,"2027-03-29":1,"2027-03-30":2,"2027-03-31":3,"2027-04-01":4,"2027-04-02":5,"2027-04-05":6,"2027-04-06":7,"2027-04-07":1,"2027-04-08":2,"2027-04-09":3,"2027-04-12":4,"2027-04-13":5,"2027-04-14":6,"2027-04-15":7,"2027-04-16":1,"2027-04-19":2,"2027-04-20":3,"2027-04-21":4,"2027-04-22":5,"2027-04-26":6,"2027-04-27":7,"2027-04-28":1,"2027-04-29":2,"2027-04-30":3,"2027-05-03":4,"2027-05-04":5,"2027-05-05":6,"2027-05-06":7,"2027-05-07":1,"2027-05-10":2,"2027-05-11":3,"2027-05-12":4,"2027-05-13":5,"2027-05-14":6,"2027-05-17":7,"2027-05-18":1,"2027-05-19":2,"2027-05-20":3,"2027-05-21":4,"2027-05-24":5,"2027-05-25":6,"2027-05-26":7,"2027-05-27":1,"2027-05-28":2}};
+const STORE_KEY = 'cocurricular-calendar-lausanne-v4';
+// Lausanne brand colors (gold darkened so it reads as text)
+const PALETTE = ['#007DA5', '#D9002A', '#679423', '#F48518', '#5A2049', '#B88A00', '#6D6D70', '#00274C', '#2a8f8a', '#9b6a35'];
+// Lausanne co-curriculars, each in a brand color
+const SUBJECTS = [
+  { name: 'Science', color: '#679423' }, { name: 'Art', color: '#D9002A' }, { name: 'Music', color: '#5A2049' },
+  { name: 'PE', color: '#F48518' }, { name: 'Library', color: '#007DA5' }, { name: 'Makerspace', color: '#B88A00' }
+];
+const ICONS = {
+  event: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1.2l1.9 4.1 4.5.5-3.4 3 1 4.4L8 11l-4 2.2 1-4.4-3.4-3 4.5-.5z"/></svg>',
+  birthday: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1c.9 1 1.2 1.8.8 2.5-.2.4-.5.6-.8.6s-.6-.2-.8-.6C6.8 2.8 7.1 2 8 1zM7.4 5h1.2v2H12a2 2 0 012 2v5H2V9a2 2 0 012-2h3.4zM3.3 10.3c.8.6 1.6.6 2.4 0s1.6-.6 2.3 0 1.6.6 2.3 0 1.6-.6 2.4 0V9a.7.7 0 00-.7-.7H4a.7.7 0 00-.7.7z"/></svg>',
+  noschool: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M3.5 2.4L8 6.9l4.5-4.5 1.1 1.1L9.1 8l4.5 4.5-1.1 1.1L8 9.1l-4.5 4.5-1.1-1.1L6.9 8 2.4 3.5z"/></svg>',
+  reminder: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2" fill="currentColor"/></svg>'
+};
+const TYPE_LABELS = { event: 'Event', birthday: 'Birthday', reminder: 'Reminder', noschool: 'No school' };
+
+const EXAMPLE = {
+  teacherName: 'Ms. Rivera (example)',
+  homeroom: '2nd Grade',
+  subtitle: '',
+  schoolName: SCHOOL.schoolName,
+  logo: SCHOOL.logo,
+  agreeTitle: 'Lausanne Essential Agreement',
+  agreeText: 'We are respectful.\nWe are responsible.\nWe are safe.',
+  rotLen: 7,
+  subjects: structuredClone(SUBJECTS),
+  days: [['Art'], ['Music', 'Library'], ['PE'], ['Science'], ['Makerspace', 'PE'], ['Music'], ['Library']],
+  rotation: SCHOOL.rotation,
+  dateOrder: 'mdy',
+  anchorDate: '',
+  anchorDay: 1,
+  specials: [
+    { date: '2026-10-07', label: 'Picture day (example)', type: 'event' },
+    { date: '2026-10-15', label: "Maya's birthday (example)", type: 'birthday' },
+    { date: '2026-10-21', label: 'Library books due (example)', type: 'reminder' },
+    { date: '2026-10-30', label: 'Costume parade (example)', type: 'event' }
+  ],
+  month: '2026-10',
+  paper: 'letter', orient: 'landscape', ink: 'color', weekends: 'no', studentLine: true
+};
+const BLANK = {
+  ...structuredClone(EXAMPLE),
+  teacherName: '', homeroom: '', anchorDate: '', anchorDay: 1,
+  days: Array.from({ length: 7 }, () => []), specials: []
+};
+
+let state = loadState() || structuredClone(EXAMPLE);
+if (!state.month) state.month = currentMonth();
+
+function currentMonth() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function loadState() { try { const s = localStorage.getItem(STORE_KEY); return s ? { ...structuredClone(EXAMPLE), ...JSON.parse(s) } : null; } catch (e) { return null; } }
+function saveState() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* storage full or blocked */ } }
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- dates ---------- */
+const pad = n => String(n).padStart(2, '0');
+const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const fromIso = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function parseDateCell(v, order, fallbackYear) {
+  if (v == null || v === '') return null;
+  if (v instanceof Date && !isNaN(v)) return iso(v);
+  if (typeof v === 'number') {
+    if (v > 30000 && v < 80000) { // Excel serial date
+      const ms = Math.round((v - 25569) * 86400000);
+      const u = new Date(ms);
+      return u.getUTCFullYear() + '-' + pad(u.getUTCMonth() + 1) + '-' + pad(u.getUTCDate());
+    }
+    return null;
+  }
+  let s = String(v).trim();
+  if (!s) return null;
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
+  s = s.replace(/^(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+/i, ''); // drop a leading weekday name
+  m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/);
+  if (m) {
+    let a = +m[1], b = +m[2];
+    let y = m[3] ? +m[3] : fallbackYear;
+    if (y < 100) y += 2000;
+    let mo = order === 'dmy' ? b : a, d = order === 'dmy' ? a : b;
+    if (mo > 12 && d <= 12) [mo, d] = [d, mo];
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+    return y + '-' + pad(mo) + '-' + pad(d);
+  }
+  if (!/[a-z]{3}/i.test(s) || !/\d/.test(s)) return null;
+  let t = Date.parse(s);
+  if (isNaN(t) || !/\d{4}/.test(s)) t = Date.parse(s + ' ' + fallbackYear);
+  if (isNaN(t)) return null;
+  const d = new Date(t);
+  return d.getFullYear() > 2000 ? iso(d) : null;
+}
+
+function parseDayCell(v, L) {
+  if (v == null) return undefined;
+  if (typeof v === 'number') return Number.isInteger(v) && v >= 1 && v <= L ? v : undefined;
+  const s = String(v).trim();
+  const m = s.match(/^(?:day|d)?\s*#?\s*(\d{1,2})$/i) || s.match(/\bday\s*#?\s*(\d{1,2})\b/i); // "3", "Day 3", "LS Day 3"
+  if (m && +m[1] >= 1 && +m[1] <= L) return +m[1];
+  if (/no school|holiday|closed|break|vacation|no classes/i.test(s)) return null;
+  return undefined;
+}
+
+function rowsToRotation(rows) {
+  const L = state.rotLen, year = +state.month.slice(0, 4), out = {};
+  let n = 0;
+  for (const row of rows) {
+    if (!row || !row.length) continue;
+    let dateIdx = -1, date = null;
+    for (let i = 0; i < row.length; i++) { date = parseDateCell(row[i], state.dateOrder, year); if (date) { dateIdx = i; break; } }
+    if (!date) continue;
+    let day;
+    for (let i = 0; i < row.length; i++) {
+      if (i === dateIdx) continue;
+      const d = parseDayCell(row[i], L);
+      if (d !== undefined) { day = d; if (d !== null) break; }
+    }
+    if (day === undefined) continue;
+    out[date] = day; n++;
+  }
+  return { map: out, count: n };
+}
+
+function rotationRange() {
+  const keys = Object.keys(state.rotation || {}).sort();
+  return keys.length ? [keys[0], keys[keys.length - 1]] : null;
+}
+
+function noSchoolSet() {
+  return new Set(state.specials.filter(s => s.type === 'noschool' && s.date).map(s => s.date));
+}
+
+function rotationDayFor(dateStr, noSchool) {
+  const d = fromIso(dateStr), dow = d.getDay();
+  if (noSchool.has(dateStr)) return null;
+  const range = rotationRange();
+  if (range && dateStr >= range[0] && dateStr <= range[1]) return state.rotation[dateStr] ?? null;
+  if (dow === 0 || dow === 6) return null;
+  if (!state.anchorDate || !state.anchorDay) return null;
+  const a = fromIso(state.anchorDate), L = state.rotLen;
+  if (a.getDay() === 0 || a.getDay() === 6) return null;
+  let count = 0, step = d >= a ? 1 : -1, cur = new Date(a), guard = 0;
+  while (iso(cur) !== dateStr && guard++ < 1500) {
+    cur.setDate(cur.getDate() + step);
+    const w = cur.getDay();
+    if (w !== 0 && w !== 6 && !noSchool.has(iso(cur))) count += step;
+  }
+  return ((((state.anchorDay - 1 + count) % L) + L) % L) + 1;
+}
+
+/* ---------- calendar ---------- */
+function renderPage() {
+  const page = $('page');
+  page.className = 'page' + (state.orient === 'portrait' ? ' portrait' : '') + (state.paper === 'a4' ? ' a4' : '') + (state.ink === 'bw' ? ' bw' : '');
+  $('page-size').textContent = `@page { size: ${state.paper === 'a4' ? 'A4' : 'letter'} ${state.orient}; margin: 0; }`;
+
+  const [y, m] = state.month.split('-').map(Number);
+  const weekends = state.weekends === 'yes';
+  const cols = weekends ? [0, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5];
+  const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const noSchool = noSchoolSet();
+  const byDate = {};
+  for (const s of state.specials) { if (s.date && s.label) (byDate[s.date] ||= []).push(s); }
+
+  // build weeks
+  const first = new Date(y, m - 1, 1), last = new Date(y, m, 0);
+  const start = new Date(first);
+  start.setDate(start.getDate() - (weekends ? start.getDay() : (start.getDay() + 6) % 7));
+  const weeks = [];
+  for (let cur = new Date(start); cur <= last;) {
+    const wk = [];
+    for (let i = 0; i < 7; i++) { wk.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+    const shown = wk.filter(d => cols.includes(d.getDay()));
+    if (shown.some(d => d.getMonth() === m - 1)) weeks.push(wk);
+  }
+
+  let cells = '';
+  weeks.forEach(wk => {
+    const shown = wk.filter(d => cols.includes(d.getDay()));
+    shown.forEach((d, ci) => {
+      const ds = iso(d), inMonth = d.getMonth() === m - 1;
+      const specials = (byDate[ds] || []).slice();
+      // with weekends hidden, Saturday/Sunday notes go on Friday
+      let wkNotes = [];
+      if (!weekends && d.getDay() === 5) {
+        for (const off of [1, 2]) {
+          const w = new Date(d); w.setDate(w.getDate() + off);
+          if (w.getMonth() === m - 1) (byDate[iso(w)] || []).forEach(s => wkNotes.push({ ...s, prefix: (off === 1 ? 'Sat ' : 'Sun ') + w.getDate() + ': ' }));
+        }
+      }
+      const isNoSchool = noSchool.has(ds);
+      let body = '';
+      if (inMonth) {
+        const rd = rotationDayFor(ds, noSchool);
+        const subs = rd ? (state.days[rd - 1] || []).filter(Boolean) : [];
+        const dayChip = rd ? `<span class="p-day">Day ${rd}</span>` : '';
+        body += `<div class="p-top"><span class="p-date">${d.getDate()}</span>${dayChip}</div>`;
+        if (isNoSchool) body += `<div class="p-nos">No school</div>`;
+        else subs.forEach(n => { const c = subjectColor(n); body += `<div class="p-class" style="background:${esc(tint(c))};color:${esc(shade(c))}">${esc(n)}</div>`; });
+        specials.forEach(s => {
+          if (s.type === 'noschool' && s.label.trim().toLowerCase() === 'no school') return;
+          body += `<div class="p-sp" style="color:${s.type === 'noschool' ? 'var(--ink-soft)' : 'var(--ink)'}">${ICONS[s.type] || ICONS.reminder}<span>${esc(s.label)}</span></div>`;
+        });
+      } else {
+        body += `<div class="p-top"><span class="p-date">${d.getDate()}</span></div>`;
+      }
+      wkNotes.forEach(s => { body += `<div class="p-sp wk">${ICONS[s.type] || ICONS.reminder}<span>${esc(s.prefix + s.label)}</span></div>`; });
+      cells += `<div class="p-cell${inMonth ? '' : ' off'}${inMonth && isNoSchool ? ' noschool' : ''}${ci === shown.length - 1 ? ' last-col' : ''}">${body}</div>`;
+    });
+  });
+
+  // legend: each subject with the rotation days it falls on
+  const seen = new Map();
+  state.days.slice(0, state.rotLen).forEach((subs, i) => (subs || []).filter(Boolean).forEach(n => {
+    if (!seen.has(n)) seen.set(n, { name: n, color: subjectColor(n), days: [] });
+    seen.get(n).days.push(i + 1);
+  }));
+  const legend = [...seen.values()].map(c => `<span><i style="background:${esc(state.ink === 'bw' ? '#fff' : c.color)};border:1px solid ${esc(state.ink === 'bw' ? '#1b2430' : c.color)}"></i><b>${esc(c.name)}</b> Day ${c.days.join(', ')}</span>`).join('');
+
+  const logo = state.logo
+    ? `<img src="${state.logo}" alt="School logo">`
+    : `<div class="ph no-print">Add logo</div>`;
+  const teacher = `${state.teacherName ? `<b>${esc(state.teacherName)}</b>` : ''}${state.homeroom ? esc(state.homeroom) : ''}`
+    + (state.studentLine ? `<div class="p-student">Name <span></span></div>` : '');
+
+  page.innerHTML = `
+    <div class="p-head">
+      <div class="p-logo">${logo}</div>
+      <div class="p-title">
+        <div class="p-month">${MONTHS[m - 1]} ${y}</div>
+        ${state.subtitle ? `<div class="p-sub">${esc(state.subtitle)}</div>` : ''}
+        ${state.schoolName ? `<div class="p-school">${esc(state.schoolName)}</div>` : ''}
+      </div>
+      <div class="p-teacher">${teacher}</div>
+    </div>
+    <div class="p-grid" style="grid-template-columns:repeat(${cols.length},1fr);grid-template-rows:auto repeat(${weeks.length},1fr)">
+      ${cols.map(c => `<div class="p-dow">${DOW[c].slice(0, state.orient === 'portrait' && weekends ? 3 : 9)}</div>`).join('')}
+      ${cells}
+    </div>
+    <div class="p-foot">
+      ${legend ? `<div class="p-legend">${legend}</div>` : ''}
+      ${state.agreeText.trim() ? `<div class="p-agree"><h3>${esc(state.agreeTitle || 'Essential Agreement')}</h3><p>${state.agreeText.trim().split(/\n+/).map(l => `<span>${esc(l)}</span>`).join('')}</p></div>` : ''}
+    </div>`;
+  fitPreview();
+}
+
+const subjectColor = n => (state.subjects.find(s => s.name === n) || {}).color || '#6D6D70';
+function hexToRgb(h) { const n = parseInt(h.replace('#', ''), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function mix(h, w, t) { const c = hexToRgb(h); return 'rgb(' + c.map(v => Math.round(v + (w - v) * t)).join(',') + ')'; }
+const tint = h => mix(h, 255, .82);
+const shade = h => mix(h, 0, .35);
+
+function fitPreview() {
+  const wrap = $('pwrap'), sc = $('pscale'), page = $('page');
+  const w = wrap.clientWidth, pw = page.offsetWidth, ph = page.offsetHeight;
+  const s = Math.min(1, w / pw);
+  sc.style.transform = `scale(${s})`;
+  wrap.style.height = (ph * s) + 'px';
+}
+window.addEventListener('resize', fitPreview);
+
+/* ---------- form ---------- */
+function renderClasses() {
+  const box = $('classes');
+  while (state.days.length < state.rotLen) state.days.push([]);
+  const opts = sel => '<option value="">—</option>' + state.subjects.map(s => `<option${s.name === sel ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
+  box.innerHTML = '';
+  for (let i = 0; i < state.rotLen; i++) {
+    const subs = state.days[i];
+    const row = document.createElement('div');
+    row.className = 'class-row';
+    row.innerHTML = `<span class="dn">Day ${i + 1}</span><select id="d${i}a" aria-label="Day ${i + 1} first class">${opts(subs[0])}</select><select id="d${i}b" aria-label="Day ${i + 1} second class">${opts(subs[1])}</select>`;
+    row.querySelectorAll('select').forEach(sel => sel.addEventListener('change', () => {
+      state.days[i] = [...row.querySelectorAll('select')].map(s => s.value).filter(Boolean);
+      changed();
+    }));
+    box.appendChild(row);
+  }
+  const sb = $('subjects');
+  sb.innerHTML = '';
+  state.subjects.forEach((s, i) => {
+    const lab = document.createElement('label');
+    lab.className = 'subj';
+    lab.innerHTML = `<input type="color" id="sc-${i}" aria-label="${esc(s.name)} color"><span>${esc(s.name)}</span>`;
+    const inp = lab.querySelector('input');
+    inp.value = s.color;
+    inp.addEventListener('input', () => { s.color = inp.value; changed(); });
+    sb.appendChild(lab);
+  });
+}
+
+function renderSpecials() {
+  const box = $('specials');
+  box.innerHTML = '';
+  state.specials.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'sp-row';
+    row.innerHTML = `<input type="date" id="spd-${i}" aria-label="Date"><input type="text" id="spl-${i}" aria-label="Description" placeholder="What's happening"><select id="spt-${i}" aria-label="Type">${Object.entries(TYPE_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select><button type="button" class="icon ghost danger" aria-label="Remove">✕</button>`;
+    const [d, l, t] = row.querySelectorAll('input, select');
+    d.value = s.date; l.value = s.label; t.value = s.type;
+    d.addEventListener('input', () => { s.date = d.value; changed(); });
+    l.addEventListener('input', () => { s.label = l.value; changed(); });
+    t.addEventListener('change', () => { s.type = t.value; if (t.value === 'noschool' && !l.value) { s.label = 'No school'; l.value = s.label; } changed(); });
+    row.querySelector('button').addEventListener('click', () => { state.specials.splice(i, 1); renderSpecials(); changed(); });
+    box.appendChild(row);
+  });
+}
+
+function renderRotStatus(msg, kind) {
+  const el = $('rotStatus');
+  if (msg) { el.textContent = msg; el.className = 'status ' + (kind || ''); return; }
+  const r = rotationRange();
+  if (r) {
+    const n = Object.values(state.rotation).filter(v => v).length;
+    el.textContent = `Rotation loaded: ${n} school days from ${fmt(r[0])} to ${fmt(r[1])}.`;
+    el.className = 'status ok';
+  } else if (state.anchorDate) {
+    el.textContent = `No spreadsheet loaded. Counting from ${fmt(state.anchorDate)} = Day ${state.anchorDay}.`;
+    el.className = 'status';
+  } else {
+    el.textContent = 'No rotation yet. Upload or paste your spreadsheet, or set one known day below.';
+    el.className = 'status';
+  }
+}
+const fmt = s => { const d = fromIso(s); return MONTHS[d.getMonth()].slice(0, 3) + ' ' + d.getDate() + ', ' + d.getFullYear(); };
+
+function fillForm() {
+  $('teacherName').value = state.teacherName;
+  $('homeroom').value = state.homeroom;
+  $('schoolName').value = state.schoolName;
+  $('subtitle').value = state.subtitle || '';
+  $('agreeTitle').value = state.agreeTitle;
+  $('agreeText').value = state.agreeText;
+  $('rotLen').value = state.rotLen;
+  $('dateOrder').value = state.dateOrder;
+  $('anchorDate').value = state.anchorDate;
+  $('anchorDay').value = state.anchorDay;
+  $('month').value = state.month;
+  $('paper').value = state.paper;
+  $('orient').value = state.orient;
+  $('ink').value = state.ink;
+  $('weekends').value = state.weekends;
+  $('studentLine').checked = !!state.studentLine;
+  $('logoThumb').hidden = !state.logo; $('logoClear').hidden = !state.logo;
+  if (state.logo) $('logoThumb').src = state.logo;
+  renderClasses(); renderSpecials(); renderRotStatus();
+}
+
+function changed() { saveState(); renderPage(); }
+
+const bind = (id, key, fn = v => v, ev = 'input') => $(id).addEventListener(ev, e => { state[key] = fn(e.target.type === 'checkbox' ? e.target.checked : e.target.value); changed(); });
+bind('teacherName', 'teacherName');
+bind('homeroom', 'homeroom');
+bind('schoolName', 'schoolName');
+bind('subtitle', 'subtitle');
+bind('agreeTitle', 'agreeTitle');
+bind('agreeText', 'agreeText');
+bind('paper', 'paper', v => v, 'change');
+bind('orient', 'orient', v => v, 'change');
+bind('ink', 'ink', v => v, 'change');
+bind('weekends', 'weekends', v => v, 'change');
+bind('studentLine', 'studentLine', v => v, 'change');
+bind('dateOrder', 'dateOrder', v => v, 'change');
+$('anchorDate').addEventListener('input', e => { state.anchorDate = e.target.value; renderRotStatus(); changed(); });
+$('anchorDay').addEventListener('input', e => { const v = +e.target.value; if (v >= 1 && v <= state.rotLen) { state.anchorDay = v; renderRotStatus(); changed(); } });
+$('rotLen').addEventListener('input', e => { const v = +e.target.value; if (v >= 2 && v <= 10) { state.rotLen = v; renderClasses(); changed(); } });
+$('month').addEventListener('input', e => { if (e.target.value) { state.month = e.target.value; changed(); } });
+function shiftMonth(n) { const [y, m] = state.month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); state.month = d.getFullYear() + '-' + pad(d.getMonth() + 1); $('month').value = state.month; changed(); }
+$('prevM').onclick = () => shiftMonth(-1);
+$('nextM').onclick = () => shiftMonth(1);
+$('printBtn').onclick = () => window.print();
+
+/* ---------- PDF + file saving ----------
+   Inside claude.ai the print dialog is blocked, so the page builds a PDF and hands it over
+   through the downloads capability. Opened as a plain file, it uses normal print and links. */
+let downloads = null;
+if (window.claude?.use) {
+  $('printBtn').hidden = true;
+  $('printHint').textContent = 'Download the PDF, then open it and print.';
+  claude.use('downloads').then(d => { downloads = d; if (!d) { $('pdfBtn').hidden = true; $('printHint').textContent = 'Downloads are not available in this view.'; } });
+}
+async function saveFile(filename, data) {
+  if (downloads) {
+    try { await downloads.save({ filename, data }); return true; }
+    catch (e) { if (e?.code !== 'declined') flash(e?.code === 'rate_limited' ? 'Another save is waiting for your answer.' : 'That file could not be saved here.'); return false; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data]));
+  a.download = filename; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return true;
+}
+function flash(msg) { const h = $('printHint'); const old = h.textContent; h.textContent = msg; setTimeout(() => { h.textContent = old; }, 4000); }
+const slug = s => s.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+
+$('pdfBtn').onclick = async () => {
+  const btn = $('pdfBtn');
+  if (!window.html2canvas || !window.jspdf) { flash('The PDF maker did not load. Check your connection and reload.'); return; }
+  btn.disabled = true; btn.textContent = 'Making PDF…';
+  try {
+    await document.fonts?.ready;
+    // render an unscaled copy so the PDF is full size
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-20000px;top:0;';
+    const copy = $('page').cloneNode(true);
+    copy.style.boxShadow = 'none';
+    copy.querySelectorAll('.no-print').forEach(el => el.remove());
+    holder.appendChild(copy); document.body.appendChild(holder);
+    const canvas = await html2canvas(copy, { scale: 2.5, backgroundColor: '#ffffff', useCORS: true, logging: false });
+    holder.remove();
+    const pdf = new jspdf.jsPDF({ orientation: state.orient, unit: 'pt', format: state.paper === 'a4' ? 'a4' : 'letter' });
+    const w = pdf.internal.pageSize.getWidth(), h = pdf.internal.pageSize.getHeight();
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, w, h);
+    const [y, m] = state.month.split('-').map(Number);
+    const name = `${MONTHS[m - 1]} ${y} calendar${state.teacherName ? ' - ' + state.teacherName.replace(/[\\/:*?"<>|]/g, '') : ''}.pdf`;
+    await saveFile(name, pdf.output('blob'));
+  } catch (e) { flash('Something went wrong making the PDF. Try again.'); }
+  btn.disabled = false; btn.textContent = 'Download PDF';
+};
+
+$('spAdd').onclick = () => {
+  const [y, m] = state.month.split('-');
+  state.specials.push({ date: `${y}-${m}-01`, label: '', type: 'event' });
+  renderSpecials(); changed();
+  const last = state.specials.length - 1; $('spl-' + last)?.focus();
+};
+
+/* logo */
+$('logoFile').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    const max = 500, s = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    state.logo = c.toDataURL('image/png');
+    URL.revokeObjectURL(img.src); fillForm(); changed();
+  };
+  img.src = URL.createObjectURL(f);
+  e.target.value = '';
+});
+$('logoClear').onclick = () => { state.logo = ''; fillForm(); changed(); };
+
+/* rotation import */
+function applyRows(rows, source) {
+  const { map, count } = rowsToRotation(rows);
+  if (!count) { renderRotStatus(`Couldn't find any rows with a date and a day number (1–${state.rotLen}) in ${source}. Check the date order and that the day column holds numbers like “3” or “Day 3”.`, 'err'); return; }
+  state.rotation = map; changed(); renderRotStatus();
+}
+$('rotUse').onclick = () => {
+  const text = $('rotPaste').value.trim();
+  if (!text) { renderRotStatus('Paste some rows first.', 'err'); return; }
+  const rows = text.split(/\r?\n/).map(l => l.split(l.includes('\t') ? '\t' : ','));
+  applyRows(rows, 'the pasted text');
+};
+$('rotRestore').onclick = () => { state.rotation = structuredClone(SCHOOL.rotation); changed(); renderRotStatus(); };
+$('rotClear').onclick =() => { state.rotation = {}; changed(); renderRotStatus(); };
+$('rotFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    if (/\.(csv|tsv|txt)$/i.test(f.name)) {
+      const text = await f.text();
+      applyRows(text.split(/\r?\n/).map(l => l.split(l.includes('\t') ? '\t' : ',').map(c => c.replace(/^"|"$/g, ''))), f.name);
+    } else {
+      if (!window.XLSX) { renderRotStatus('The spreadsheet reader did not load (are you offline?). Save the sheet as CSV and upload that instead.', 'err'); return; }
+      const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+      const rows = wb.SheetNames.flatMap(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' }));
+      applyRows(rows, f.name);
+    }
+  } catch (err) { renderRotStatus('Could not read that file: ' + err.message, 'err'); }
+});
+
+/* settings files */
+$('saveFile').onclick = () => {
+  saveFile('cocurricular-settings' + (state.teacherName ? '-' + slug(state.teacherName) : '') + '.json', JSON.stringify(state, null, 2));
+};
+$('openFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { state = { ...structuredClone(EXAMPLE), ...JSON.parse(await f.text()) }; fillForm(); changed(); }
+  catch (err) { renderRotStatus('That settings file could not be opened.', 'err'); }
+});
+function confirmClick(btn, ask, act) {
+  const label = btn.textContent; let armed = false, t;
+  btn.onclick = () => {
+    if (!armed) { armed = true; btn.textContent = ask; t = setTimeout(() => { armed = false; btn.textContent = label; }, 4000); return; }
+    clearTimeout(t); armed = false; btn.textContent = label; act();
+  };
+}
+confirmClick($('loadExample'), 'Click again to replace your setup', () => { state = structuredClone(EXAMPLE); fillForm(); changed(); });
+confirmClick($('clearAll'), 'Click again to clear', () => { state = structuredClone(BLANK); state.month = currentMonth(); fillForm(); changed(); });
+
+fillForm();
+renderPage();
+document.fonts?.ready.then(fitPreview);
+</script>
+</body>
+</html>
