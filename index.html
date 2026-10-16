@@ -7,7 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&family=Open+Sans+Condensed:wght@300;700&family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -207,18 +206,12 @@ button.icon { padding: 6px 9px; line-height: 1; }
             <button class="ghost danger" id="logoClear" type="button" hidden>Remove</button>
           </div>
         </div>
-        <label class="f">Essential agreement heading<input type="text" id="agreeTitle"></label>
-        <label class="f">Essential agreement<textarea id="agreeText" rows="4"></textarea></label>
       </div>
     </details>
 
     <details class="sec" open>
       <summary>Co-curricular schedule</summary>
       <div class="sec-body">
-        <div class="row">
-          <label class="f">Days in rotation<input type="number" id="rotLen" min="2" max="10"></label>
-          <span></span>
-        </div>
         <div class="class-head"><span></span><span>Class</span><span>Second class</span></div>
         <div class="classes" id="classes"></div>
         <p class="hint">Pick “—” for no class. Colors are shared by every day that subject appears:</p>
@@ -227,35 +220,11 @@ button.icon { padding: 6px 9px; line-height: 1; }
     </details>
 
     <details class="sec" open>
-      <summary>Rotation days</summary>
-      <div class="sec-body">
-        <p class="hint">The Lower School rotation for 2026–27 is already built in. To use a different one, upload a spreadsheet, or copy the date column and the day column and paste them below. Each row needs a date and a day number (for example <code>10/5/2026 &nbsp; Day 3</code>).</p>
-        <div class="row">
-          <label class="btn" for="rotFile" style="text-align:center">Upload spreadsheet…</label>
-          <input type="file" id="rotFile" accept=".xlsx,.xls,.csv,.tsv,.txt" hidden>
-          <label class="f">Date order<select id="dateOrder"><option value="mdy">Month/Day</option><option value="dmy">Day/Month</option></select></label>
-        </div>
-        <textarea id="rotPaste" rows="4" placeholder="Paste rows here"></textarea>
-        <div class="row">
-          <button type="button" id="rotUse">Use pasted rows</button>
-          <button type="button" class="ghost" id="rotRestore">Use school rotation</button>
-          <button type="button" class="ghost danger" id="rotClear">Clear</button>
-        </div>
-        <div class="status" id="rotStatus"></div>
-        <p class="hint" style="margin-top:4px"><b>No spreadsheet?</b> Give one known day and the calendar counts forward, skipping weekends and “No school” days.</p>
-        <div class="row">
-          <label class="f">Date<input type="date" id="anchorDate"></label>
-          <label class="f">is Day<input type="number" id="anchorDay" min="1" max="10"></label>
-        </div>
-      </div>
-    </details>
-
-    <details class="sec" open>
       <summary>Special days this month</summary>
       <div class="sec-body">
         <div class="specials" id="specials"></div>
         <button type="button" id="spAdd">Add a special day</button>
-        <p class="hint">“No school” days are left out of the rotation count when the calendar counts days for you.</p>
+        <p class="hint">Rotation days and the essential agreement come from the school and fill in automatically.</p>
       </div>
     </details>
 
@@ -277,7 +246,7 @@ button.icon { padding: 6px 9px; line-height: 1; }
     <details class="sec">
       <summary>Save &amp; share settings</summary>
       <div class="sec-body">
-        <p class="hint">Save a settings file to back up your setup or give a colleague the same logo, agreement and rotation. They can open it here and change the teacher name and classes.</p>
+        <p class="hint">Save a settings file to back up your setup or move your setup to another computer.</p>
         <div class="row">
           <button type="button" id="saveFile">Save settings file</button>
           <label class="btn" for="openFile" style="text-align:center">Open settings file…</label>
@@ -356,7 +325,10 @@ const BLANK = {
   days: Array.from({ length: 7 }, () => []), specials: []
 };
 
-let state = loadState() || structuredClone(EXAMPLE);
+// Rotation, rotation length and the essential agreement always come from the school
+const LOCKED = { rotation: SCHOOL.rotation, rotLen: 7, anchorDate: '', agreeTitle: EXAMPLE.agreeTitle, agreeText: EXAMPLE.agreeText };
+const withSchool = s => ({ ...structuredClone(EXAMPLE), ...s, ...structuredClone(LOCKED) });
+let state = withSchool(loadState() || EXAMPLE);
 if (!state.month) state.month = currentMonth();
 
 function currentMonth() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
@@ -622,6 +594,7 @@ function renderSpecials() {
 
 function renderRotStatus(msg, kind) {
   const el = $('rotStatus');
+  if (!el) return;
   if (msg) { el.textContent = msg; el.className = 'status ' + (kind || ''); return; }
   const r = rotationRange();
   if (r) {
@@ -643,12 +616,6 @@ function fillForm() {
   $('homeroom').value = state.homeroom;
   $('schoolName').value = state.schoolName;
   $('subtitle').value = state.subtitle || '';
-  $('agreeTitle').value = state.agreeTitle;
-  $('agreeText').value = state.agreeText;
-  $('rotLen').value = state.rotLen;
-  $('dateOrder').value = state.dateOrder;
-  $('anchorDate').value = state.anchorDate;
-  $('anchorDay').value = state.anchorDay;
   $('month').value = state.month;
   $('paper').value = state.paper;
   $('orient').value = state.orient;
@@ -667,17 +634,11 @@ bind('teacherName', 'teacherName');
 bind('homeroom', 'homeroom');
 bind('schoolName', 'schoolName');
 bind('subtitle', 'subtitle');
-bind('agreeTitle', 'agreeTitle');
-bind('agreeText', 'agreeText');
 bind('paper', 'paper', v => v, 'change');
 bind('orient', 'orient', v => v, 'change');
 bind('ink', 'ink', v => v, 'change');
 bind('weekends', 'weekends', v => v, 'change');
 bind('studentLine', 'studentLine', v => v, 'change');
-bind('dateOrder', 'dateOrder', v => v, 'change');
-$('anchorDate').addEventListener('input', e => { state.anchorDate = e.target.value; renderRotStatus(); changed(); });
-$('anchorDay').addEventListener('input', e => { const v = +e.target.value; if (v >= 1 && v <= state.rotLen) { state.anchorDay = v; renderRotStatus(); changed(); } });
-$('rotLen').addEventListener('input', e => { const v = +e.target.value; if (v >= 2 && v <= 10) { state.rotLen = v; renderClasses(); changed(); } });
 $('month').addEventListener('input', e => { if (e.target.value) { state.month = e.target.value; changed(); } });
 function shiftMonth(n) { const [y, m] = state.month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); state.month = d.getFullYear() + '-' + pad(d.getMonth() + 1); $('month').value = state.month; changed(); }
 $('prevM').onclick = () => shiftMonth(-1);
@@ -754,43 +715,14 @@ $('logoFile').addEventListener('change', e => {
 });
 $('logoClear').onclick = () => { state.logo = ''; fillForm(); changed(); };
 
-/* rotation import */
-function applyRows(rows, source) {
-  const { map, count } = rowsToRotation(rows);
-  if (!count) { renderRotStatus(`Couldn't find any rows with a date and a day number (1–${state.rotLen}) in ${source}. Check the date order and that the day column holds numbers like “3” or “Day 3”.`, 'err'); return; }
-  state.rotation = map; changed(); renderRotStatus();
-}
-$('rotUse').onclick = () => {
-  const text = $('rotPaste').value.trim();
-  if (!text) { renderRotStatus('Paste some rows first.', 'err'); return; }
-  const rows = text.split(/\r?\n/).map(l => l.split(l.includes('\t') ? '\t' : ','));
-  applyRows(rows, 'the pasted text');
-};
-$('rotRestore').onclick = () => { state.rotation = structuredClone(SCHOOL.rotation); changed(); renderRotStatus(); };
-$('rotClear').onclick =() => { state.rotation = {}; changed(); renderRotStatus(); };
-$('rotFile').addEventListener('change', async e => {
-  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-  try {
-    if (/\.(csv|tsv|txt)$/i.test(f.name)) {
-      const text = await f.text();
-      applyRows(text.split(/\r?\n/).map(l => l.split(l.includes('\t') ? '\t' : ',').map(c => c.replace(/^"|"$/g, ''))), f.name);
-    } else {
-      if (!window.XLSX) { renderRotStatus('The spreadsheet reader did not load (are you offline?). Save the sheet as CSV and upload that instead.', 'err'); return; }
-      const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
-      const rows = wb.SheetNames.flatMap(n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' }));
-      applyRows(rows, f.name);
-    }
-  } catch (err) { renderRotStatus('Could not read that file: ' + err.message, 'err'); }
-});
-
 /* settings files */
 $('saveFile').onclick = () => {
   saveFile('cocurricular-settings' + (state.teacherName ? '-' + slug(state.teacherName) : '') + '.json', JSON.stringify(state, null, 2));
 };
 $('openFile').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-  try { state = { ...structuredClone(EXAMPLE), ...JSON.parse(await f.text()) }; fillForm(); changed(); }
-  catch (err) { renderRotStatus('That settings file could not be opened.', 'err'); }
+  try { state = withSchool(JSON.parse(await f.text())); fillForm(); changed(); }
+  catch (err) { flash('That settings file could not be opened.'); }
 });
 function confirmClick(btn, ask, act) {
   const label = btn.textContent; let armed = false, t;
@@ -799,8 +731,8 @@ function confirmClick(btn, ask, act) {
     clearTimeout(t); armed = false; btn.textContent = label; act();
   };
 }
-confirmClick($('loadExample'), 'Click again to replace your setup', () => { state = structuredClone(EXAMPLE); fillForm(); changed(); });
-confirmClick($('clearAll'), 'Click again to clear', () => { state = structuredClone(BLANK); state.month = currentMonth(); fillForm(); changed(); });
+confirmClick($('loadExample'), 'Click again to replace your setup', () => { state = withSchool(EXAMPLE); fillForm(); changed(); });
+confirmClick($('clearAll'), 'Click again to clear', () => { state = withSchool(BLANK); state.month = currentMonth(); fillForm(); changed(); });
 
 fillForm();
 renderPage();
