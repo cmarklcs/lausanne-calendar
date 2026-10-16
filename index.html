@@ -148,6 +148,7 @@ button.icon { padding: 6px 9px; line-height: 1; }
 .p-dow { background: var(--lc-blue); color: #fff; font-weight: 700; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .1em; text-align: center; padding: 4px 0; }
 .p-cell { background: var(--paper); border-right: 1px solid var(--rule); border-top: 1px solid var(--rule); padding: 4px 6px; display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: hidden; position: relative; }
 .p-cell.last-col { border-right: 0; }
+.p-cell.wkend { background: #f8fafc; }
 .p-cell.off { background: var(--offmonth); }
 .p-cell.off .p-date { color: #b0b8c1; }
 .p-top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
@@ -237,7 +238,7 @@ button.icon { padding: 6px 9px; line-height: 1; }
         </div>
         <div class="row">
           <label class="f">Ink<select id="ink"><option value="color">Color</option><option value="bw">Black &amp; white</option></select></label>
-          <label class="f">Days shown<select id="weekends"><option value="no">Mon – Fri</option><option value="yes">Sun – Sat</option></select></label>
+          <span></span>
         </div>
         <label class="f" style="display:flex;gap:8px;align-items:center;font-weight:400;color:var(--fg)"><input type="checkbox" id="studentLine"> Add a “Student name” line</label>
       </div>
@@ -313,11 +314,12 @@ const EXAMPLE = {
   specials: [
     { date: '2026-10-07', label: 'Picture day (example)', type: 'event' },
     { date: '2026-10-15', label: "Maya's birthday (example)", type: 'birthday' },
+    { date: '2026-10-17', label: 'Fall Festival (example)', type: 'event' },
     { date: '2026-10-21', label: 'Library books due (example)', type: 'reminder' },
     { date: '2026-10-30', label: 'Costume parade (example)', type: 'event' }
   ],
   month: '2026-10',
-  paper: 'letter', orient: 'landscape', ink: 'color', weekends: 'no', studentLine: true
+  paper: 'letter', orient: 'landscape', ink: 'color', weekends: 'yes', studentLine: true
 };
 const BLANK = {
   ...structuredClone(EXAMPLE),
@@ -326,7 +328,7 @@ const BLANK = {
 };
 
 // Rotation, rotation length and the essential agreement always come from the school
-const LOCKED = { rotation: SCHOOL.rotation, rotLen: 7, anchorDate: '', agreeTitle: EXAMPLE.agreeTitle, agreeText: EXAMPLE.agreeText };
+const LOCKED = { weekends: 'yes', rotation: SCHOOL.rotation, rotLen: 7, anchorDate: '', agreeTitle: EXAMPLE.agreeTitle, agreeText: EXAMPLE.agreeText };
 const withSchool = s => ({ ...structuredClone(EXAMPLE), ...s, ...structuredClone(LOCKED) });
 let state = withSchool(loadState() || EXAMPLE);
 if (!state.month) state.month = currentMonth();
@@ -491,7 +493,7 @@ function renderPage() {
         body += `<div class="p-top"><span class="p-date">${d.getDate()}</span></div>`;
       }
       wkNotes.forEach(s => { body += `<div class="p-sp wk">${ICONS[s.type] || ICONS.reminder}<span>${esc(s.prefix + s.label)}</span></div>`; });
-      cells += `<div class="p-cell${inMonth ? '' : ' off'}${inMonth && isNoSchool ? ' noschool' : ''}${ci === shown.length - 1 ? ' last-col' : ''}">${body}</div>`;
+      cells += `<div class="p-cell${inMonth ? '' : ' off'}${d.getDay() === 0 || d.getDay() === 6 ? ' wkend' : ''}${inMonth && isNoSchool ? ' noschool' : ''}${ci === shown.length - 1 ? ' last-col' : ''}">${body}</div>`;
     });
   });
 
@@ -519,8 +521,8 @@ function renderPage() {
       </div>
       <div class="p-teacher">${teacher}</div>
     </div>
-    <div class="p-grid" style="grid-template-columns:repeat(${cols.length},1fr);grid-template-rows:auto repeat(${weeks.length},1fr)">
-      ${cols.map(c => `<div class="p-dow">${DOW[c].slice(0, state.orient === 'portrait' && weekends ? 3 : 9)}</div>`).join('')}
+    <div class="p-grid" style="grid-template-columns:${cols.map(c => (c === 0 || c === 6) && weekends ? '.72fr' : '1fr').join(' ')};grid-template-rows:auto repeat(${weeks.length},1fr)">
+      ${cols.map(c => `<div class="p-dow">${DOW[c].slice(0, state.orient === 'portrait' ? 3 : 9)}</div>`).join('')}
       ${cells}
     </div>
     <div class="p-foot">
@@ -620,7 +622,6 @@ function fillForm() {
   $('paper').value = state.paper;
   $('orient').value = state.orient;
   $('ink').value = state.ink;
-  $('weekends').value = state.weekends;
   $('studentLine').checked = !!state.studentLine;
   $('logoThumb').hidden = !state.logo; $('logoClear').hidden = !state.logo;
   if (state.logo) $('logoThumb').src = state.logo;
@@ -637,7 +638,6 @@ bind('subtitle', 'subtitle');
 bind('paper', 'paper', v => v, 'change');
 bind('orient', 'orient', v => v, 'change');
 bind('ink', 'ink', v => v, 'change');
-bind('weekends', 'weekends', v => v, 'change');
 bind('studentLine', 'studentLine', v => v, 'change');
 $('month').addEventListener('input', e => { if (e.target.value) { state.month = e.target.value; changed(); } });
 function shiftMonth(n) { const [y, m] = state.month.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); state.month = d.getFullYear() + '-' + pad(d.getMonth() + 1); $('month').value = state.month; changed(); }
