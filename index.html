@@ -144,7 +144,16 @@ button.icon { padding: 6px 9px; line-height: 1; }
 .p-student { margin-top: 6px; font-size: 10pt; color: var(--ink-soft); white-space: nowrap; }
 .p-student span { display: inline-block; width: 1.6in; border-bottom: 1px solid var(--ink); }
 
-.p-grid { flex: 1; display: grid; border: 1.5px solid var(--lc-blue); border-radius: 6px; overflow: hidden; min-height: 0; }
+.p-body { flex: 1; min-height: 0; display: flex; gap: .14in; }
+.page.portrait .p-body { flex-direction: column; }
+.p-side { flex: 0 0 2.15in; background: var(--paper); border: 1.5px solid var(--lc-blue); border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }
+.page.portrait .p-side { flex: 0 0 auto; max-height: 2in; }
+.p-side h3 { margin: 0; padding: 5px 10px; background: var(--lc-blue); color: #fff; font: 700 11.5pt/1.2 var(--font-cond); text-align: center; }
+.p-side-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: 10.5pt; line-height: 1.3; overflow: hidden; }
+.p-side-body p { margin: 0; }
+.p-side-body.bullets p { padding-left: 12px; position: relative; }
+.p-side-body.bullets p::before { content: ""; position: absolute; left: 0; top: .5em; width: 5px; height: 5px; border-radius: 50%; background: var(--lc-gold); }
+.p-grid { flex: 1; min-width: 0; display: grid; border: 1.5px solid var(--lc-blue); border-radius: 6px; overflow: hidden; min-height: 0; }
 .p-dow { background: var(--lc-blue); color: #fff; font-weight: 700; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .1em; text-align: center; padding: 4px 0; }
 .p-cell { background: var(--paper); border-right: 1px solid var(--rule); border-top: 1px solid var(--rule); padding: 4px 6px; display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: hidden; position: relative; }
 .p-cell.last-col { border-right: 0; }
@@ -165,7 +174,7 @@ button.icon { padding: 6px 9px; line-height: 1; }
 .p-legend { font-family: var(--font-cond); display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 9pt; justify-content: center; }
 .p-legend span { display: inline-flex; gap: 5px; align-items: center; }
 .p-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-.p-agree { border: 1.5px solid var(--lc-blue); border-radius: 6px; overflow: hidden; }
+.p-agree { background: var(--paper); border: 1.5px solid var(--lc-blue); border-radius: 6px; overflow: hidden; }
 .p-agree h3 { margin: 0; padding: 3px 12px; background: #6cbcd0; color: var(--lc-blue); font: 700 11pt/1.2 var(--font-cond); text-align: center; }
 .p-agree p { margin: 0; padding: 5px 12px 6px; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 26px; color: var(--lc-blue); font: 700 15pt/1.15 var(--font-cond); }
 
@@ -226,6 +235,16 @@ button.icon { padding: 6px 9px; line-height: 1; }
         <div class="specials" id="specials"></div>
         <button type="button" id="spAdd">Add a special day</button>
         <p class="hint">Rotation days and the essential agreement come from the school and fill in automatically.</p>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary>Side box (optional)</summary>
+      <div class="sec-body">
+        <p class="hint">Adds a box beside the calendar, for example your class's own essential agreement, goals or reminders. Leave both fields empty for no box.</p>
+        <label class="f">Heading<input type="text" id="sideTitle" placeholder="e.g. Our Class Essential Agreement"></label>
+        <label class="f">Text<textarea id="sideText" rows="6" placeholder="One item per line"></textarea></label>
+        <label class="f" style="display:flex;gap:8px;align-items:center;font-weight:400;color:var(--fg)"><input type="checkbox" id="sideBullets"> Put a bullet before each line</label>
       </div>
     </details>
 
@@ -300,6 +319,7 @@ const EXAMPLE = {
   teacherName: 'Ms. Rivera (example)',
   homeroom: '2nd Grade',
   subtitle: '',
+  sideTitle: '', sideText: '', sideBullets: true,
   schoolName: SCHOOL.schoolName,
   logo: SCHOOL.logo,
   agreeTitle: 'Lausanne Essential Agreement',
@@ -511,6 +531,8 @@ function renderPage() {
   const teacher = `${state.teacherName ? `<b>${esc(state.teacherName)}</b>` : ''}${state.homeroom ? esc(state.homeroom) : ''}`
     + (state.studentLine ? `<div class="p-student">Name <span></span></div>` : '');
 
+  const sideLines = (state.sideText || '').split(/\n/).map(l => l.trim()).filter(Boolean);
+  const hasSide = !!(sideLines.length || state.sideTitle?.trim());
   page.innerHTML = `
     <div class="p-head">
       <div class="p-logo">${logo}</div>
@@ -521,9 +543,12 @@ function renderPage() {
       </div>
       <div class="p-teacher">${teacher}</div>
     </div>
+    <div class="p-body${hasSide ? ' has-side' : ''}">
     <div class="p-grid" style="grid-template-columns:${cols.map(c => (c === 0 || c === 6) && weekends ? '.72fr' : '1fr').join(' ')};grid-template-rows:auto repeat(${weeks.length},1fr)">
       ${cols.map(c => `<div class="p-dow">${DOW[c].slice(0, state.orient === 'portrait' ? 3 : 9)}</div>`).join('')}
       ${cells}
+    </div>
+    ${hasSide ? `<aside class="p-side">${state.sideTitle?.trim() ? `<h3>${esc(state.sideTitle.trim())}</h3>` : ''}<div class="p-side-body${state.sideBullets !== false ? ' bullets' : ''}">${sideLines.map(l => `<p>${esc(l)}</p>`).join('')}</div></aside>` : ''}
     </div>
     <div class="p-foot">
       ${legend ? `<div class="p-legend">${legend}</div>` : ''}
@@ -618,6 +643,9 @@ function fillForm() {
   $('homeroom').value = state.homeroom;
   $('schoolName').value = state.schoolName;
   $('subtitle').value = state.subtitle || '';
+  $('sideTitle').value = state.sideTitle || '';
+  $('sideText').value = state.sideText || '';
+  $('sideBullets').checked = state.sideBullets !== false;
   $('month').value = state.month;
   $('paper').value = state.paper;
   $('orient').value = state.orient;
@@ -635,6 +663,9 @@ bind('teacherName', 'teacherName');
 bind('homeroom', 'homeroom');
 bind('schoolName', 'schoolName');
 bind('subtitle', 'subtitle');
+bind('sideTitle', 'sideTitle');
+bind('sideText', 'sideText');
+bind('sideBullets', 'sideBullets', v => v, 'change');
 bind('paper', 'paper', v => v, 'change');
 bind('orient', 'orient', v => v, 'change');
 bind('ink', 'ink', v => v, 'change');
