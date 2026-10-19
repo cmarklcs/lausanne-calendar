@@ -135,6 +135,10 @@ button.icon { padding: 6px 10px; line-height: 1; }
         <label class="f" id="pickWrap">Course<select id="pick"></select></label>
         <label class="f">Course name as students see it<input type="text" id="course" placeholder="e.g. English 9"></label>
       </div>
+      <label class="f" id="modeWrap">Plan by<select id="msMode">
+        <option value="day">Rotation day: one plan per school day</option>
+        <option value="lesson">Lesson: each block moves through lessons at its own pace</option>
+      </select></label>
       <div class="f"><span id="periodsLabel">Periods you teach this course</span><div class="periods" id="periods"></div></div>
       <label class="f" style="display:flex;gap:8px;align-items:center;font-weight:400;color:var(--fg)"><input type="checkbox" id="showTimes"> Show the day and time each period meets</label>
       <label class="f">Sign-off<textarea id="signoff" rows="2" placeholder="e.g. Best,&#10;Ms. Smith"></textarea></label>
@@ -242,6 +246,7 @@ let state = load() || structuredClone(EXAMPLE);
 if (!DIVISIONS[state.division]) state.division = 'US';
 if (!state.week) state.week = mondayOf(iso(new Date()));
 state.skips ||= {};
+state.msMode ||= 'day';
 function load() { try { const s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* storage blocked */ } }
 // each course keeps its own plan for each week
@@ -299,7 +304,14 @@ function lessonGroups() {
   }
   return groups;
 }
-const groups = () => taught().length ? (div().grouping === 'pair' ? pairGroups() : lessonGroups()) : [];
+// Middle School by rotation day: each school day is its own plan for every block meeting that day.
+function dayGroups() {
+  return weekSchoolDays().map(date => ({ key: 'D' + date, dates: [date], meetings: [{ date, list: meetingsOn(date) }],
+    skipped: meetingsOn(date, true).filter(m => m.skipped).map(m => ({ date, block: m.block })) }))
+    .filter(g => g.meetings[0].list.length || g.skipped.length);
+}
+const mode = () => div().grouping === 'pair' ? 'pair' : state.msMode;
+const groups = () => !taught().length ? [] : mode() === 'pair' ? pairGroups() : mode() === 'day' ? dayGroups() : lessonGroups();
 
 /* ---------- headings ---------- */
 const plist = blocks => div().grouping === 'pair' ? div().short + blocks.join(', ') : `${div().unit}${blocks.length > 1 ? 's' : ''} ${blocks.join(', ')}`;
@@ -316,12 +328,13 @@ function heading(g) {
     const days = g.dates.map(d => D.rotation[d]);
     return `${D.dayLabel} ${days.join('–')} · ${dateRange(g.dates)} (${plist(taught())})`;
   }
+  if (mode() === 'day') { const d = fromIso(g.dates[0]); return `${DOWS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} · ${D.rotation[g.dates[0]]}${g.meetings[0].list.length ? ` (${plist(g.meetings[0].list.map(x => x.block))})` : ''}`; }
   return g.meetings.map(m => { const d = fromIso(m.date); return `${DOWS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} (${plist(m.list.map(x => x.block))})`; }).join(' / ');
 }
 function meetLine(g) {
   const D = div();
   return g.meetings.filter(m => m.list.length).map(m => {
-    const day = D.grouping === 'lesson' ? ` (${D.rotation[m.date]})` : '';
+    const day = mode() === 'lesson' ? ` (${D.rotation[m.date]})` : '';
     return `${short(m.date)}${day}: ` + m.list.map(x => `${D.short}${x.block} ${D.times[x.slot]}`).join(', ');
   }).concat(g.skipped.map(s => `${D.short}${s.block} no class ${short(s.date)}`)).join(' · ');
 }
@@ -454,6 +467,8 @@ function renderSetup() {
   $('course').value = state.course;
   $('signoff').value = state.signoff;
   $('showTimes').checked = !!state.showTimes;
+  $('modeWrap').hidden = div().grouping === 'pair';
+  $('msMode').value = state.msMode;
   $('periodsLabel').textContent = `${div().unit}s you teach this course`;
   $('periods').innerHTML = div().blocks.map(b => `<label><input type="checkbox" value="${b}" ${state.periods.includes(b) ? 'checked' : ''}>${div().short}${b}</label>`).join('');
   $('periods').querySelectorAll('input').forEach(inp => inp.addEventListener('change', () => {
@@ -620,6 +635,7 @@ $('teacher').addEventListener('change', e => {
 });
 $('pick').addEventListener('change', e => { const c = ((TEACHERS[state.division] || {})[state.teacher] || [])[+e.target.value]; if (c) pickCourse(c); });
 $('signoff').addEventListener('input', e => { state.signoff = e.target.value; save(); renderPreview(); });
+$('msMode').addEventListener('change', e => { state.msMode = e.target.value; save(); renderGroups(); renderPreview(); });
 $('showTimes').addEventListener('change', e => { state.showTimes = e.target.checked; save(); renderPreview(); });
 ['intro', 'extra', 'closing'].forEach(k => richField($(k), () => weekData()[k], v => { weekData()[k] = v; }));
 function setWeek(s) { state.week = mondayOf(s); save(); renderWeek(); renderPreview(); }
