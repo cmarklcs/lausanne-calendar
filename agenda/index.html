@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lausanne Weekly Agenda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
+<style>
+/* Layout: editor on the left, the agenda exactly as students will see it on the right. */
+:root {
+  --bg: #eef1f5;
+  --panel: #ffffff;
+  --fg: #1d2733;
+  --muted: #5d6b7a;
+  --line: #d5dce4;
+  --accent: #23578a;
+  --accent-fg: #ffffff;
+  --field: #f7f9fb;
+  --ok: #3f8f5a;
+  --lc-blue: #00274c;
+  --lc-gold: #FFCB05;
+  --lc-blue-chip: #e3ecf5;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Verdana", "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171d; --panel: #1b222b; --fg: #e4e9ef; --muted: #9aa7b4; --line: #2e3844;
+    --accent: #6ea8dc; --accent-fg: #0d1620; --field: #141a21; --ok: #6cc08a; --lc-blue: #9cc3ea; --lc-blue-chip: #1f2c3a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171d; --panel: #1b222b; --fg: #e4e9ef; --muted: #9aa7b4; --line: #2e3844;
+  --accent: #6ea8dc; --accent-fg: #0d1620; --field: #141a21; --ok: #6cc08a; --lc-blue: #9cc3ea; --lc-blue-chip: #1f2c3a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font-body); }
+
+.top { background: var(--panel); border-bottom: 1px solid var(--line); padding: 14px 24px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.top h1 { font: 800 21px/1.1 var(--font-display); margin: 0; }
+.top .lede { color: var(--muted); font-size: 14px; margin: 0; flex: 1 1 280px; }
+.app { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(360px, 1fr); gap: 20px; padding: 20px 24px 60px; align-items: start; }
+@media (max-width: 900px) { .app { grid-template-columns: 1fr; padding-inline: 16px; } .top { padding-inline: 16px; } }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.stack { display: grid; gap: 16px; min-width: 0; }
+.card h2 { font: 700 16px/1.2 var(--font-display); margin: 0; }
+.card > p.hint, .hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+label.f, .f { display: grid; gap: 4px; font-size: 13px; font-weight: 700; color: var(--muted); }
+input[type=text], input[type=date], select, textarea {
+  font: 15px var(--font-body); color: var(--fg); background: var(--field);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100%; min-width: 0;
+}
+textarea { resize: vertical; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+.row > * { flex: 1 1 140px; min-width: 0; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, .rich:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+button { font: 700 14px var(--font-body); border-radius: 6px; padding: 8px 12px; cursor: pointer; border: 1px solid var(--line); background: var(--field); color: var(--fg); }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.ghost { background: transparent; }
+button.icon { padding: 6px 10px; line-height: 1; }
+
+.periods { display: flex; gap: 6px; flex-wrap: wrap; }
+.periods label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--field); border-radius: 99px; padding: 5px 12px; font-size: 14px; font-weight: 700; color: var(--fg); cursor: pointer; }
+.periods label:has(input:checked) { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.periods input { position: absolute; opacity: 0; pointer-events: none; }
+.periods label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.weeknav { display: flex; gap: 6px; align-items: center; }
+.weeknav input { width: auto; flex: 1; }
+
+.rich { font-weight: 400; min-height: 54px; background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; color: var(--fg); }
+.rich:empty::before { content: attr(data-ph); color: var(--muted); }
+.rich ul, .rich ol { margin: 4px 0; padding-left: 22px; }
+.rich p { margin: 0 0 4px; }
+.rich a { color: var(--accent); }
+.tools { display: flex; gap: 4px; flex-wrap: wrap; }
+.tools button { padding: 3px 9px; font-size: 13px; }
+
+.group { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.group-head { background: var(--lc-blue-chip); padding: 10px 14px; display: grid; gap: 2px; }
+.group-head b { font: 700 15px/1.25 var(--font-display); color: var(--lc-blue); }
+.group-head span { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.group-body { padding: 12px 14px; display: grid; gap: 10px; }
+
+.preview-wrap { position: sticky; top: 12px; }
+.preview-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.preview-bar .status { font-size: 13px; color: var(--ok); font-weight: 700; }
+.preview { background: #fff; color: #1b2430; border: 1px solid var(--line); border-radius: 8px; padding: 18px 22px; max-height: calc(100vh - 140px); overflow: auto; font: 15px/1.5 Arial, Helvetica, sans-serif; overflow-wrap: anywhere; }
+.preview a { color: #0b62a8; }
+.preview hr { border: 0; border-top: 1px solid #c9d1da; margin: 14px 0; }
+.preview ul { margin: 4px 0 8px; padding-left: 24px; }
+.preview p { margin: 0 0 6px; }
+@media (max-width: 900px) { .preview-wrap { position: static; } .preview { max-height: none; } }
+.notice { border: 1px dashed var(--line); border-radius: 8px; padding: 14px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Lausanne Weekly Agenda</h1>
+  <p class="lede">Write each class meeting once. The days, periods and times fill in from the rotation, ready to paste into Toddle.</p>
+</header>
+
+<div class="app">
+  <div class="stack">
+    <section class="card" aria-labelledby="setupH">
+      <h2 id="setupH">Your class</h2>
+      <div class="row">
+        <label class="f">Division<select id="division"></select></label>
+        <label class="f">Course name<input type="text" id="course" placeholder="e.g. English 9"></label>
+      </div>
+      <div class="f"><span id="periodsLabel">Periods you teach this course</span><div class="periods" id="periods"></div></div>
+      <label class="f" style="display:flex;gap:8px;align-items:center;font-weight:400;color:var(--fg)"><input type="checkbox" id="showTimes"> Show the day and time each period meets</label>
+      <label class="f">Sign-off<textarea id="signoff" rows="2" placeholder="e.g. Best,&#10;Ms. Smith"></textarea></label>
+    </section>
+
+    <section class="card" aria-labelledby="weekH">
+      <h2 id="weekH">This week</h2>
+      <div class="f">Week of
+        <div class="weeknav">
+          <button type="button" class="icon" id="prevW" aria-label="Previous week">‹</button>
+          <input type="date" id="week" aria-label="Week of">
+          <button type="button" class="icon" id="nextW" aria-label="Next week">›</button>
+        </div>
+      </div>
+      <div class="f">Opening message<div class="rich" id="intro" contenteditable="true" data-ph="Hello! Here's our plan for the week."></div></div>
+      <div class="f">Extra section (optional)<div class="rich" id="extra" contenteditable="true" data-ph="Anything else: a reminder, a joke of the week…"></div></div>
+    </section>
+
+    <div class="stack" id="groups"></div>
+
+    <section class="card">
+      <div class="f">Closing message<div class="rich" id="closing" contenteditable="true" data-ph="e.g. Looking forward to seeing you on Monday!"></div></div>
+      <div class="row">
+        <button type="button" class="ghost" id="clearWeek">Clear this week</button>
+      </div>
+      <p class="hint">Everything you type is saved in this browser, week by week. Paste links straight from Toddle or Google; they stay clickable.</p>
+    </section>
+  </div>
+
+  <div class="preview-wrap stack">
+    <div class="preview-bar">
+      <button type="button" class="primary" id="copyBtn">Copy for Toddle</button>
+      <span class="status" id="copyStatus" role="status"></span>
+    </div>
+    <div class="preview" id="preview"></div>
+    <p class="hint">After copying, click into your Toddle post and paste (⌘V or Ctrl+V).</p>
+  </div>
+</div>
+
+<script>
+/* ---------- school data ---------- */
+// Upper School six-period Blue/Gold block schedule: periods in the order they meet each rotation day
+const US_SLOTS = ['8:50', '10:40', '2:15'];
+const DIVISIONS = {
+  US: {
+    name: 'Upper School', unit: 'Period', short: 'P', blocks: [1, 2, 3, 4, 5, 6], grouping: 'pair', dayLabel: 'US Day',
+    byDay: { 1: [1, 3, 5], 2: [2, 4, 6], 3: [3, 5, 1], 4: [4, 6, 2], 5: [5, 1, 3], 6: [6, 2, 4] },
+    times: US_SLOTS,
+    rotation: {"2026-08-17":6,"2026-08-18":1,"2026-08-19":2,"2026-08-20":3,"2026-08-21":4,"2026-08-31":5,"2026-09-01":6,"2026-09-02":1,"2026-09-03":2,"2026-09-04":3,"2026-09-08":4,"2026-09-09":5,"2026-09-10":6,"2026-09-11":1,"2026-09-14":2,"2026-09-15":3,"2026-09-16":4,"2026-09-17":5,"2026-09-18":6,"2026-09-21":1,"2026-09-22":2,"2026-09-23":3,"2026-09-24":4,"2026-09-28":5,"2026-09-29":6,"2026-09-30":1,"2026-10-01":2,"2026-10-02":3,"2026-10-05":4,"2026-10-06":5,"2026-10-07":6,"2026-10-13":1,"2026-10-14":2,"2026-10-15":3,"2026-10-16":4,"2026-10-19":5,"2026-10-20":6,"2026-10-21":1,"2026-10-22":2,"2026-10-23":3,"2026-10-26":4,"2026-10-27":5,"2026-10-28":6,"2026-10-29":1,"2026-10-30":2,"2026-11-02":3,"2026-11-03":4,"2026-11-04":5,"2026-11-05":6,"2026-11-09":1,"2026-11-10":2,"2026-11-11":3,"2026-11-12":4,"2026-11-13":5,"2026-11-16":6,"2026-11-17":1,"2026-11-18":2,"2026-11-19":3,"2026-11-20":4,"2026-11-30":5,"2026-12-01":6,"2026-12-02":1,"2026-12-03":2,"2026-12-04":3,"2026-12-07":4,"2026-12-08":5,"2026-12-09":6,"2026-12-10":1,"2026-12-11":2,"2026-12-14":3,"2026-12-15":4,"2026-12-16":5,"2026-12-17":6,"2026-12-18":1,"2027-01-04":2,"2027-01-05":3,"2027-01-06":4,"2027-01-07":5,"2027-01-08":6,"2027-01-11":1,"2027-01-12":2,"2027-01-13":3,"2027-01-14":4,"2027-01-15":5,"2027-01-19":6,"2027-01-20":1,"2027-01-21":2,"2027-01-25":3,"2027-01-26":4,"2027-01-27":5,"2027-01-28":6,"2027-01-29":1,"2027-02-01":2,"2027-02-02":3,"2027-02-03":4,"2027-02-04":5,"2027-02-05":6,"2027-02-08":1,"2027-02-09":2,"2027-02-10":3,"2027-02-11":4,"2027-02-16":5,"2027-02-17":6,"2027-02-18":1,"2027-02-19":2,"2027-02-22":3,"2027-02-23":4,"2027-02-24":5,"2027-02-25":6,"2027-02-26":1,"2027-03-01":2,"2027-03-02":3,"2027-03-03":4,"2027-03-04":5,"2027-03-05":6,"2027-03-15":1,"2027-03-16":2,"2027-03-17":3,"2027-03-18":4,"2027-03-19":5,"2027-03-22":6,"2027-03-23":1,"2027-03-24":2,"2027-03-29":3,"2027-03-30":4,"2027-03-31":5,"2027-04-01":6,"2027-04-02":1,"2027-04-05":2,"2027-04-06":3,"2027-04-07":4,"2027-04-08":5,"2027-04-09":6,"2027-04-12":1,"2027-04-13":2,"2027-04-14":3,"2027-04-15":4,"2027-04-16":5,"2027-04-19":6,"2027-04-20":1,"2027-04-21":2,"2027-04-26":3,"2027-04-27":4,"2027-04-28":5,"2027-04-29":6,"2027-04-30":1,"2027-05-03":2,"2027-05-04":3,"2027-05-05":4,"2027-05-06":5,"2027-05-07":6,"2027-05-10":1,"2027-05-11":2,"2027-05-12":3,"2027-05-13":4,"2027-05-14":5,"2027-05-17":6,"2027-05-18":1,"2027-05-19":2,"2027-05-20":3,"2027-05-21":4,"2027-05-24":5,"2027-05-25":6,"2027-05-26":1,"2027-05-27":2,"2027-05-28":3}
+  }
+  // MS: added once the Middle School rotation and block chart are in. Uses grouping: 'lesson'.
+};
+
+const STORE_KEY = 'lausanne-weekly-agenda-v1';
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const DOWS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const pad = n => String(n).padStart(2, '0');
+const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const fromIso = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = fromIso(s); d.setDate(d.getDate() + n); return iso(d); };
+const mondayOf = s => { const d = fromIso(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); };
+const short = s => { const d = fromIso(s); return `${DOWS[d.getDay()].slice(0, 3)} ${d.getMonth() + 1}/${d.getDate()}`; };
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = id => document.getElementById(id);
+
+/* ---------- state ---------- */
+const EXAMPLE_WEEK = '2026-10-19';
+const EXAMPLE = {
+  division: 'US', course: 'English 9 (example)', periods: [1, 2, 6], showTimes: true,
+  signoff: 'Best,\nMs. Example',
+  week: EXAMPLE_WEEK,
+  weeks: {
+    [EXAMPLE_WEEK]: {
+      intro: '<p>Hello, 9th graders! I hope everyone had a great weekend. Here is our plan for the week.</p>',
+      extra: '',
+      closing: '<p>Looking forward to seeing you on Monday!</p>',
+      groups: {
+        '2026-10-19': { due: '<p>Finish reading and annotating the story.</p>', inclass: '<ul><li>Discussion and analysis of the story (example)</li></ul>', hw: '<p>Online modules</p>' },
+        '2026-10-21': { due: '<p>Online modules</p>', inclass: '<ul><li>Formative quiz</li><li>Start our next short story</li></ul>', hw: '<p>Finish reading and annotating the next story.</p>' },
+        '2026-10-23': { due: '<p>Reading and annotations</p>', inclass: '<ul><li>Formative writing day</li></ul>', hw: '<p>Brainstorm ideas for your own short story.</p>' }
+      }
+    }
+  }
+};
+
+let state = load() || structuredClone(EXAMPLE);
+if (!DIVISIONS[state.division]) state.division = 'US';
+if (!state.week) state.week = mondayOf(iso(new Date()));
+function load() { try { const s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* storage blocked */ } }
+const weekData = () => (state.weeks[state.week] ||= { intro: '', extra: '', closing: '', groups: {} });
+
+/* ---------- rotation math ---------- */
+const div = () => DIVISIONS[state.division];
+const taught = () => div().blocks.filter(b => state.periods.includes(b));
+function schoolDaysFrom(start, count) { // next `count` school days on or after `start`
+  const out = [], rot = div().rotation; let d = start;
+  for (let guard = 0; out.length < count && guard < 60; guard++, d = addDays(d, 1)) if (rot[d]) out.push(d);
+  return out;
+}
+function meetingsOn(date) { // [{block, slot}] for taught blocks on this date, in meeting order
+  const D = div(), rd = D.rotation[date];
+  if (!rd) return [];
+  return D.byDay[rd].map((b, slot) => ({ block: b, slot })).filter(m => state.periods.includes(m.block));
+}
+function weekSchoolDays() { const out = []; for (let i = 0; i < 5; i++) { const d = addDays(state.week, i); if (div().rotation[d]) out.push(d); } return out; }
+
+// Upper School: every period meets once in each Blue/Gold pair of days, so the week is a set of day pairs.
+function pairGroups() {
+  const D = div(), days = weekSchoolDays(), groups = [];
+  for (let i = 0; i < days.length; i++) {
+    const d = days[i], rd = D.rotation[d];
+    if (rd % 2 === 0 && i === 0) { groups.push([d]); continue; } // week opens on the second half of a pair
+    if (rd % 2 === 1) {
+      const next = schoolDaysFrom(addDays(d, 1), 1)[0];
+      groups.push(next && D.rotation[next] === rd + 1 ? [d, next] : [d]);
+      if (next && days[i + 1] === next) i++;
+    }
+  }
+  return groups.map(dates => ({ key: dates[0], dates, meetings: dates.map(date => ({ date, list: meetingsOn(date) })) }));
+}
+// Middle School: blocks drift apart, so lesson k is each block's k-th meeting from Monday.
+function lessonGroups() {
+  const days = weekSchoolDays();
+  if (!days.length) return [];
+  const per = {};
+  const ahead = schoolDaysFrom(days[0], days.length + 10);
+  taught().forEach(b => { per[b] = ahead.filter(d => meetingsOn(d).some(m => m.block === b)); });
+  const inWeek = b => per[b].filter(d => d <= days[days.length - 1]).length;
+  const n = Math.max(0, ...taught().map(inWeek));
+  const groups = [];
+  for (let k = 0; k < n; k++) {
+    const byDate = {};
+    taught().forEach(b => { const d = per[b][k]; if (d) (byDate[d] ||= []).push(b); });
+    const dates = Object.keys(byDate).sort();
+    groups.push({ key: 'L' + (k + 1), dates, meetings: dates.map(date => ({ date, list: meetingsOn(date).filter(m => byDate[date].includes(m.block)) })) });
+  }
+  return groups;
+}
+const groups = () => taught().length ? (div().grouping === 'pair' ? pairGroups() : lessonGroups()) : [];
+
+/* ---------- headings ---------- */
+const plist = blocks => div().short + blocks.join(', ');
+function dateRange(dates) {
+  const a = fromIso(dates[0]), b = fromIso(dates[dates.length - 1]);
+  const ma = MONTHS[a.getMonth()].slice(0, 3) + '.';
+  if (dates.length === 1) return `${ma} ${a.getDate()}`;
+  if (a.getMonth() === b.getMonth()) return `${ma} ${a.getDate()}–${b.getDate()}`;
+  return `${ma} ${a.getDate()} – ${MONTHS[b.getMonth()].slice(0, 3)}. ${b.getDate()}`;
+}
+function heading(g) {
+  const D = div();
+  if (D.grouping === 'pair') {
+    const days = g.dates.map(d => D.rotation[d]);
+    return `${D.dayLabel} ${days.join('–')} · ${dateRange(g.dates)} (${plist(taught())})`;
+  }
+  return g.meetings.map(m => { const d = fromIso(m.date); return `${DOWS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} (${m.list.length > 1 ? D.unit + 's' : D.unit} ${m.list.map(x => x.block).join(', ')})`; }).join(' / ');
+}
+function meetLine(g) {
+  const D = div();
+  return g.meetings.filter(m => m.list.length).map(m => {
+    if (D.times) {
+      return m.list.map(x => `${D.short}${x.block} ${short(m.date)}, ${D.times[x.slot]}`).join(' · ');
+    }
+    return `${plist(m.list.map(x => x.block))} ${short(m.date)}`;
+  }).join(' · ');
+}
+
+/* ---------- rich text ---------- */
+const ALLOWED = { A: ['href'], B: [], STRONG: [], I: [], EM: [], U: [], UL: [], OL: [], LI: [], BR: [], P: [] };
+function clean(html) {
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+  const walk = node => {
+    [...node.childNodes].forEach(ch => {
+      if (ch.nodeType === 3) return;
+      if (ch.nodeType !== 1 || /^(SCRIPT|STYLE|META|TITLE|LINK|IMG|svg|IFRAME|OBJECT)$/i.test(ch.tagName)) { ch.remove(); return; }
+      walk(ch);
+      // Google Docs and Word mark bold with a style rather than <b>
+      const bold = ch.tagName === 'SPAN' && /font-weight:\s*(bold|[6-9]00)/i.test(ch.getAttribute('style') || '');
+      // ...and wrap whole pastes in <b style="font-weight:normal">
+      const notBold = /^(B|STRONG)$/.test(ch.tagName) && /font-weight:\s*(normal|[1-4]00)/i.test(ch.getAttribute('style') || '');
+      const tag = notBold ? 'SPAN' : bold ? 'B' : ch.tagName === 'DIV' ? 'P' : ch.tagName;
+      if (!ALLOWED[tag]) { ch.replaceWith(...ch.childNodes); return; }
+      const el = document.createElement(tag);
+      for (const a of ALLOWED[tag]) { const v = ch.getAttribute(a); if (v && /^(https?:|mailto:)/i.test(v.trim())) el.setAttribute(a, v.trim()); }
+      el.append(...ch.childNodes);
+      ch.replaceWith(el);
+    });
+  };
+  const root = doc.body.firstChild; walk(root);
+  // turn bare URLs into links
+  const tw = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const texts = []; while (tw.nextNode()) if (!tw.currentNode.parentElement.closest('a') && /https?:\/\//.test(tw.currentNode.data)) texts.push(tw.currentNode);
+  texts.forEach(t => {
+    const frag = doc.createDocumentFragment();
+    t.data.split(/(https?:\/\/[^\s<]+)/).forEach((part, i) => {
+      if (i % 2) { const a = doc.createElement('a'); a.href = part; a.textContent = part; frag.append(a); } else if (part) frag.append(part);
+    });
+    t.replaceWith(frag);
+  });
+  return root.innerHTML.replace(/<p><\/p>/g, '').trim();
+}
+const isEmpty = html => !html || !html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+
+function richField(el, get, set) {
+  el.innerHTML = get() || '';
+  el.addEventListener('input', () => { set(el.innerHTML); save(); renderPreview(); });
+  el.addEventListener('paste', e => {
+    e.preventDefault();
+    const html = e.clipboardData.getData('text/html');
+    const text = e.clipboardData.getData('text/plain');
+    const safe = html ? clean(html) : esc(text).replace(/\n/g, '<br>');
+    document.execCommand('insertHTML', false, html ? safe : clean(safe));
+  });
+  el.addEventListener('blur', () => { const c = clean(el.innerHTML); set(c); save(); renderPreview(); });
+}
+function toolbar(target) {
+  const t = document.createElement('div');
+  t.className = 'tools';
+  t.innerHTML = `<button type="button" data-c="bold" aria-label="Bold"><b>B</b></button><button type="button" data-c="insertUnorderedList">• List</button><button type="button" data-c="link">Link</button>`;
+  t.addEventListener('mousedown', e => e.preventDefault());
+  t.addEventListener('click', e => {
+    const c = e.target.closest('button')?.dataset.c; if (!c) return;
+    target.focus();
+    if (c === 'link') {
+      const sel = getSelection();
+      if (!sel.rangeCount || sel.isCollapsed) { flash('Select some text first, then click Link.'); return; }
+      const box = linkBox(url => { if (url) { restore(sel, saved); document.execCommand('createLink', false, url); target.dispatchEvent(new Event('input')); } });
+      const saved = sel.getRangeAt(0).cloneRange();
+      t.after(box); box.querySelector('input').focus();
+      return;
+    }
+    document.execCommand(c); target.dispatchEvent(new Event('input'));
+  });
+  return t;
+}
+function restore(sel, range) { sel.removeAllRanges(); sel.addRange(range); }
+function linkBox(done) {
+  const box = document.createElement('div');
+  box.className = 'row';
+  box.innerHTML = `<input type="text" placeholder="Paste the link (https://…)"><button type="button">Add link</button><button type="button" class="ghost">Cancel</button>`;
+  const [inp, ok, cancel] = box.querySelectorAll('input, button');
+  const finish = v => { box.remove(); done(v); };
+  ok.onclick = () => { const v = inp.value.trim(); finish(/^https?:\/\//i.test(v) ? v : v ? 'https://' + v : ''); };
+  cancel.onclick = () => finish('');
+  inp.onkeydown = e => { if (e.key === 'Enter') ok.click(); if (e.key === 'Escape') cancel.click(); };
+  return box;
+}
+
+/* ---------- render editor ---------- */
+function renderSetup() {
+  $('division').innerHTML = Object.entries(DIVISIONS).map(([k, d]) => `<option value="${k}">${d.name}</option>`).join('') + (DIVISIONS.MS ? '' : '<option disabled>Middle School (coming soon)</option>');
+  $('division').value = state.division;
+  $('course').value = state.course;
+  $('signoff').value = state.signoff;
+  $('showTimes').checked = !!state.showTimes;
+  $('periodsLabel').textContent = `${div().unit}s you teach this course`;
+  $('periods').innerHTML = div().blocks.map(b => `<label><input type="checkbox" value="${b}" ${state.periods.includes(b) ? 'checked' : ''}>${div().short}${b}</label>`).join('');
+  $('periods').querySelectorAll('input').forEach(inp => inp.addEventListener('change', () => {
+    state.periods = [...$('periods').querySelectorAll('input:checked')].map(i => +i.value);
+    save(); renderGroups(); renderPreview();
+  }));
+}
+
+function renderWeek() {
+  $('week').value = state.week;
+  const w = weekData();
+  ['intro', 'extra', 'closing'].forEach(k => { $(k).innerHTML = w[k] || ''; });
+  renderGroups();
+}
+
+function renderGroups() {
+  const box = $('groups'), w = weekData(), gs = groups();
+  box.innerHTML = '';
+  if (!taught().length) { box.innerHTML = `<div class="notice">Pick the ${div().unit.toLowerCase()}s you teach above, and each class meeting this week will appear here.</div>`; return; }
+  if (!gs.length) {
+    const rot = Object.keys(div().rotation).sort();
+    box.innerHTML = `<div class="notice">There are no ${div().name} school days this week${state.week < rot[0] || state.week > rot[rot.length - 1] ? ` (the rotation runs ${short(rot[0])} to ${short(rot[rot.length - 1])})` : ''}.</div>`;
+    return;
+  }
+  gs.forEach(g => {
+    const data = (w.groups[g.key] ||= { due: '', inclass: '', hw: '' });
+    const el = document.createElement('section');
+    el.className = 'group';
+    el.innerHTML = `<div class="group-head"><b>${esc(heading(g))}</b><span>${esc(meetLine(g))}</span></div><div class="group-body"></div>`;
+    const body = el.querySelector('.group-body');
+    [['due', 'Due', 'Leave blank for “None”'], ['inclass', 'In class', 'What you will do in class'], ['hw', 'Homework', 'Leave blank for “None”']].forEach(([k, label, ph]) => {
+      const f = document.createElement('div'); f.className = 'f';
+      const rich = document.createElement('div');
+      rich.className = 'rich'; rich.contentEditable = 'true'; rich.dataset.ph = ph; rich.id = `${g.key}-${k}`;
+      rich.setAttribute('aria-label', `${label} for ${heading(g)}`);
+      f.append(label, toolbar(rich), rich);
+      richField(rich, () => data[k], v => { data[k] = v; });
+      body.append(f);
+    });
+    box.append(el);
+  });
+}
+
+/* ---------- agenda output ---------- */
+function agendaHTML() {
+  const w = weekData(), D = div(), gs = groups();
+  const m = fromIso(state.week);
+  let h = `<p><strong>${esc(state.course || 'Weekly agenda')} – Week of ${MONTHS[m.getMonth()]} ${ordinal(m.getDate())}${taught().length ? ` (${plist(taught())})` : ''}</strong></p>`;
+  if (!isEmpty(w.intro)) h += w.intro;
+  if (!isEmpty(w.extra)) h += '<hr>' + w.extra;
+  gs.forEach(g => {
+    const data = w.groups[g.key] || {};
+    h += `<hr><p><strong>${esc(heading(g))}</strong>`;
+    if (state.showTimes) h += `<br><em>${esc(meetLine(g))}</em>`;
+    h += '</p>';
+    [['due', 'Due'], ['inclass', 'In class'], ['hw', 'Homework']].forEach(([k, label]) => {
+      const v = data[k];
+      if (isEmpty(v)) { if (k !== 'inclass') h += `<p><strong>${label}:</strong> None</p>`; return; }
+      // keep a one-line answer on the label line
+      const inline = /^<p>((?:(?!<\/?p>).)*)<\/p>$/s.exec(v.trim()) || (!/<(p|ul|ol)\b/i.test(v) && [0, v]);
+      h += inline ? `<p><strong>${label}:</strong> ${inline[1]}</p>` : `<p><strong>${label}:</strong></p>${v}`;
+    });
+  });
+  if (!isEmpty(w.closing)) h += '<hr>' + w.closing;
+  if (state.signoff.trim()) h += `<p>${esc(state.signoff.trim()).replace(/\n/g, '<br>')}</p>`;
+  return h;
+}
+function renderPreview() { $('preview').innerHTML = agendaHTML(); }
+
+/* ---------- copy ---------- */
+function flash(msg) { const s = $('copyStatus'); s.textContent = msg; clearTimeout(flash.t); flash.t = setTimeout(() => { s.textContent = ''; }, 4000); }
+$('copyBtn').onclick = async () => {
+  document.activeElement?.blur?.();
+  const html = agendaHTML(), text = $('preview').innerText;
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([text], { type: 'text/plain' }) })]);
+    flash('Copied. Now paste it into Toddle.');
+  } catch (e) {
+    const r = document.createRange(); r.selectNodeContents($('preview'));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    const ok = document.execCommand('copy'); sel.removeAllRanges();
+    flash(ok ? 'Copied. Now paste it into Toddle.' : 'Copy was blocked. Select the agenda and copy it yourself.');
+  }
+};
+
+/* ---------- wiring ---------- */
+$('division').addEventListener('change', e => { state.division = e.target.value; state.periods = []; save(); renderSetup(); renderGroups(); renderPreview(); });
+$('course').addEventListener('input', e => { state.course = e.target.value; save(); renderPreview(); });
+$('signoff').addEventListener('input', e => { state.signoff = e.target.value; save(); renderPreview(); });
+$('showTimes').addEventListener('change', e => { state.showTimes = e.target.checked; save(); renderPreview(); });
+['intro', 'extra', 'closing'].forEach(k => richField($(k), () => weekData()[k], v => { weekData()[k] = v; }));
+function setWeek(s) { state.week = mondayOf(s); save(); renderWeek(); renderPreview(); }
+$('week').addEventListener('change', e => { if (e.target.value) setWeek(e.target.value); });
+$('prevW').onclick = () => setWeek(addDays(state.week, -7));
+$('nextW').onclick = () => setWeek(addDays(state.week, 7));
+let clearArmed = false;
+$('clearWeek').onclick = () => {
+  const b = $('clearWeek');
+  if (!clearArmed) { clearArmed = true; b.textContent = 'Click again to clear this week'; setTimeout(() => { clearArmed = false; b.textContent = 'Clear this week'; }, 4000); return; }
+  clearArmed = false; b.textContent = 'Clear this week';
+  delete state.weeks[state.week]; save(); renderWeek(); renderPreview();
+};
+
+renderSetup();
+renderWeek();
+renderPreview();
+</script>
+</body>
+</html>
