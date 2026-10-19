@@ -86,6 +86,24 @@ button.icon { padding: 6px 10px; line-height: 1; }
 .group-head b { font: 700 15px/1.25 var(--font-display); color: var(--lc-blue); }
 .group-head span { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .group-body { padding: 12px 14px; display: grid; gap: 10px; }
+.plan-tag { display: inline-block; font: 700 11px/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; margin-right: 6px; vertical-align: 2px; color: #1b2430; }
+.split { border-left: 3px solid var(--line); padding-left: 12px; display: grid; gap: 10px; }
+.split-head { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-weight: 700; color: var(--lc-blue); }
+.split-pick { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.split-pick button.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+.wk { overflow-x: auto; }
+.wk-grid { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(104px, 1fr); gap: 8px; min-width: 0; }
+.wk-day { display: grid; gap: 6px; align-content: start; }
+.wk-day h3 { margin: 0; font: 700 13px/1.25 var(--font-body); }
+.wk-day h3 small { display: block; font-weight: 400; color: var(--muted); }
+.wk-day.next h3 { color: var(--muted); }
+.wk-cls { display: grid; gap: 1px; text-align: left; padding: 6px 8px; border-radius: 6px; border: 1px solid transparent; color: #1b2430; font-size: 13px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.wk-cls b { font-size: 14px; }
+.wk-cls b small { font-weight: 400; font-size: 13px; }
+.wk-cls.off { background: transparent !important; border: 1px dashed var(--line); color: var(--muted); text-decoration: line-through; }
+.wk-cls.off span { text-decoration: none; display: inline-block; }
+.wk-none { font-size: 13px; color: var(--muted); padding: 6px 2px; }
 
 .preview-wrap { position: sticky; top: 12px; }
 .preview-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -133,6 +151,12 @@ button.icon { padding: 6px 10px; line-height: 1; }
       </div>
       <div class="f">Opening message<div class="rich" id="intro" contenteditable="true" data-ph="Hello! Here's our plan for the week."></div></div>
       <div class="f">Extra section (optional)<div class="rich" id="extra" contenteditable="true" data-ph="Anything else: a reminder, a joke of the week…"></div></div>
+    </section>
+
+    <section class="card" aria-labelledby="gridH">
+      <h2 id="gridH">Your week at a glance</h2>
+      <p class="hint">Each color is one plan below. Click a class to mark it as not meeting (assembly, testing, a trip), and the plans adjust.</p>
+      <div class="wk" id="weekGrid"></div>
     </section>
 
     <div class="stack" id="groups"></div>
@@ -217,6 +241,7 @@ const EXAMPLE = {
 let state = load() || structuredClone(EXAMPLE);
 if (!DIVISIONS[state.division]) state.division = 'US';
 if (!state.week) state.week = mondayOf(iso(new Date()));
+state.skips ||= {};
 function load() { try { const s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* storage blocked */ } }
 // each course keeps its own plan for each week
@@ -231,10 +256,13 @@ function schoolDaysFrom(start, count) { // next `count` school days on or after 
   for (let guard = 0; out.length < count && guard < 60; guard++, d = addDays(d, 1)) if (rot[d]) out.push(d);
   return out;
 }
-function meetingsOn(date) { // [{block, slot}] for taught blocks on this date, in meeting order
+// classes a teacher has marked as not meeting (assembly, testing, trips)
+const skipKey = (date, block) => `${state.division}|${date}|${block}`;
+function meetingsOn(date, includeSkipped = false) { // [{block, slot, skipped}] for taught blocks on this date, in meeting order
   const D = div(), rd = D.rotation[date];
   if (!rd) return [];
-  return D.byDay[rd].map((b, slot) => ({ block: b, slot })).filter(m => state.periods.includes(m.block));
+  return D.byDay[rd].map((b, slot) => ({ block: b, slot, skipped: !!state.skips[skipKey(date, b)] }))
+    .filter(m => state.periods.includes(m.block) && (includeSkipped || !m.skipped));
 }
 function weekSchoolDays() { const out = []; for (let i = 0; i < 5; i++) { const d = addDays(state.week, i); if (div().rotation[d]) out.push(d); } return out; }
 
@@ -250,7 +278,8 @@ function pairGroups() {
       if (next && days[i + 1] === next) i++;
     }
   }
-  return groups.map(dates => ({ key: dates[0], dates, meetings: dates.map(date => ({ date, list: meetingsOn(date) })) }));
+  return groups.map(dates => ({ key: dates[0], dates, meetings: dates.map(date => ({ date, list: meetingsOn(date) })),
+    skipped: dates.flatMap(date => meetingsOn(date, true).filter(m => m.skipped).map(m => ({ date, block: m.block }))) }));
 }
 // Middle School: blocks drift apart, so lesson k is each block's k-th meeting from Monday.
 function lessonGroups() {
@@ -266,7 +295,7 @@ function lessonGroups() {
     const byDate = {};
     taught().forEach(b => { const d = per[b][k]; if (d) (byDate[d] ||= []).push(b); });
     const dates = Object.keys(byDate).sort();
-    groups.push({ key: 'L' + (k + 1), dates, meetings: dates.map(date => ({ date, list: meetingsOn(date).filter(m => byDate[date].includes(m.block)) })) });
+    groups.push({ key: 'L' + (k + 1), dates, meetings: dates.map(date => ({ date, list: meetingsOn(date).filter(m => byDate[date].includes(m.block)) })), skipped: [] });
   }
   return groups;
 }
@@ -294,7 +323,7 @@ function meetLine(g) {
   return g.meetings.filter(m => m.list.length).map(m => {
     const day = D.grouping === 'lesson' ? ` (${D.rotation[m.date]})` : '';
     return `${short(m.date)}${day}: ` + m.list.map(x => `${D.short}${x.block} ${D.times[x.slot]}`).join(', ');
-  }).join(' · ');
+  }).concat(g.skipped.map(s => `${D.short}${s.block} no class ${short(s.date)}`)).join(' · ');
 }
 
 /* ---------- rich text ---------- */
@@ -348,7 +377,7 @@ function richField(el, get, set) {
 function toolbar(target) {
   const t = document.createElement('div');
   t.className = 'tools';
-  t.innerHTML = `<button type="button" data-c="bold" aria-label="Bold"><b>B</b></button><button type="button" data-c="insertUnorderedList">• List</button><button type="button" data-c="link">Link</button>`;
+  t.innerHTML = `<button type="button" data-c="bold"><b>Bold</b></button><button type="button" data-c="insertUnorderedList">• List</button><button type="button" data-c="link">Link</button>`;
   t.addEventListener('mousedown', e => e.preventDefault());
   t.addEventListener('click', e => {
     const c = e.target.closest('button')?.dataset.c; if (!c) return;
@@ -376,6 +405,41 @@ function linkBox(done) {
   cancel.onclick = () => finish('');
   inp.onkeydown = e => { if (e.key === 'Enter') ok.click(); if (e.key === 'Escape') cancel.click(); };
   return box;
+}
+
+/* ---------- plans ---------- */
+const PLAN_COLORS = ['#cfe3f3', '#fde9a6', '#d6ebc9', '#f6d2cf', '#e3d6ef', '#fbdcbd', '#d5e9e7'];
+const planColor = i => PLAN_COLORS[i % PLAN_COLORS.length];
+const groupBlocks = g => [...new Set(g.meetings.flatMap(m => m.list.map(x => x.block)))];
+// blocks that follow the shared plan, once some have their own
+const sharedBlocks = (g, data) => groupBlocks(g).filter(b => !(data.splits || []).some(s => s.blocks.includes(b)));
+const FIELDS = [['due', 'Due', 'Leave blank for “None”'], ['inclass', 'In class', 'What you will do in class'], ['hw', 'Homework', 'Leave blank for “None”']];
+
+/* ---------- week at a glance ---------- */
+function renderGrid() {
+  const box = $('weekGrid'), D = div(), gs = groups();
+  if (!taught().length) { box.innerHTML = `<p class="wk-none">Choose your name and course, or pick your ${D.unit.toLowerCase()}s, to see your week.</p>`; return; }
+  const plan = {};
+  gs.forEach((g, i) => g.meetings.forEach(m => m.list.forEach(x => { plan[m.date + '|' + x.block] = i; })));
+  const week = weekSchoolDays();
+  const later = [...new Set(gs.flatMap(g => g.dates))].filter(d => !week.includes(d)).sort();
+  const days = [...week, ...later];
+  if (!days.length) { box.innerHTML = '<p class="wk-none">No school days this week.</p>'; return; }
+  box.innerHTML = `<div class="wk-grid">${days.map(d => {
+    // days after Friday only show the classes that finish this week's plans
+    const list = meetingsOn(d, true).filter(x => week.includes(d) || plan[d + '|' + x.block] !== undefined);
+    const label = D.grouping === 'pair' ? `${D.dayLabel} ${D.rotation[d]}` : D.rotation[d];
+    return `<div class="wk-day${week.includes(d) ? '' : ' next'}"><h3>${short(d)}<small>${esc(label)}</small></h3>${list.length ? list.map(x => {
+      const i = plan[d + '|' + x.block];
+      const what = x.skipped ? 'No class' : i === undefined ? '' : `Plan ${i + 1}`;
+      return `<button type="button" class="wk-cls${x.skipped ? ' off' : ''}" data-d="${d}" data-b="${x.block}" style="background:${i === undefined ? 'var(--field)' : planColor(i)}" aria-pressed="${x.skipped}" title="${x.skipped ? 'Click to mark as meeting again' : 'Click to mark as not meeting'}"><b>${D.short}${x.block} <small>${D.times[x.slot]}</small></b><span>${what}</span></button>`;
+    }).join('') : '<p class="wk-none">No classes</p>'}</div>`;
+  }).join('')}</div>`;
+  box.querySelectorAll('.wk-cls').forEach(btn => btn.onclick = () => {
+    const k = skipKey(btn.dataset.d, btn.dataset.b);
+    if (state.skips[k]) delete state.skips[k]; else state.skips[k] = true;
+    save(); renderGroups(); renderPreview();
+  });
 }
 
 /* ---------- render editor ---------- */
@@ -406,31 +470,84 @@ function renderWeek() {
 }
 
 function renderGroups() {
-  const box = $('groups'), w = weekData(), gs = groups();
+  renderGrid();
+  const box = $('groups'), w = weekData(), gs = groups(), D = div();
   box.innerHTML = '';
-  if (!taught().length) { box.innerHTML = `<div class="notice">Pick the ${div().unit.toLowerCase()}s you teach above, and each class meeting this week will appear here.</div>`; return; }
+  if (!taught().length) { box.innerHTML = `<div class="notice">Pick the ${D.unit.toLowerCase()}s you teach above, and each class meeting this week will appear here.</div>`; return; }
   if (!gs.length) {
-    const rot = Object.keys(div().rotation).sort();
-    box.innerHTML = `<div class="notice">There are no ${div().name} school days this week${state.week < rot[0] || state.week > rot[rot.length - 1] ? ` (the rotation runs ${short(rot[0])} to ${short(rot[rot.length - 1])})` : ''}.</div>`;
+    const rot = Object.keys(D.rotation).sort();
+    box.innerHTML = `<div class="notice">There are no ${D.name} school days this week${state.week < rot[0] || state.week > rot[rot.length - 1] ? ` (the rotation runs ${short(rot[0])} to ${short(rot[rot.length - 1])})` : ''}.</div>`;
     return;
   }
-  gs.forEach(g => {
+  gs.forEach((g, gi) => {
     const data = (w.groups[g.key] ||= { due: '', inclass: '', hw: '' });
+    data.splits ||= [];
+    const blocks = groupBlocks(g);
+    data.splits.forEach(s => { s.blocks = s.blocks.filter(b => blocks.includes(b)); });
+    data.splits = data.splits.filter(s => s.blocks.length);
     const el = document.createElement('section');
     el.className = 'group';
-    el.innerHTML = `<div class="group-head"><b>${esc(heading(g))}</b><span>${esc(meetLine(g))}</span></div><div class="group-body"></div>`;
+    el.innerHTML = `<div class="group-head"><b><span class="plan-tag" style="background:${planColor(gi)}">Plan ${gi + 1}</span>${esc(heading(g))}</b><span>${esc(meetLine(g))}</span></div><div class="group-body"></div>`;
     const body = el.querySelector('.group-body');
-    [['due', 'Due', 'Leave blank for “None”'], ['inclass', 'In class', 'What you will do in class'], ['hw', 'Homework', 'Leave blank for “None”']].forEach(([k, label, ph]) => {
-      const f = document.createElement('div'); f.className = 'f';
-      const rich = document.createElement('div');
-      rich.className = 'rich'; rich.contentEditable = 'true'; rich.dataset.ph = ph; rich.id = `${g.key}-${k}`;
-      rich.setAttribute('aria-label', `${label} for ${heading(g)}`);
-      f.append(label, toolbar(rich), rich);
-      richField(rich, () => data[k], v => { data[k] = v; });
-      body.append(f);
+    const shared = sharedBlocks(g, data);
+    if (data.splits.length && shared.length) {
+      const h4 = document.createElement('div'); h4.className = 'split-head'; h4.textContent = plist(shared);
+      body.append(h4);
+    }
+    if (shared.length) fields(body, data, `${g.key}`, heading(g));
+    data.splits.forEach((s, si) => {
+      const wrap = document.createElement('div'); wrap.className = 'split';
+      wrap.innerHTML = `<div class="split-head"><span>${esc(plist(s.blocks))} only</span><button type="button" class="ghost">Remove</button></div>`;
+      wrap.querySelector('button').onclick = () => { data.splits.splice(si, 1); save(); renderGroups(); renderPreview(); };
+      fields(wrap, s, `${g.key}-s${si}`, `${plist(s.blocks)} in ${heading(g)}`);
+      body.append(wrap);
     });
+    if (shared.length > 1 || (shared.length && data.splits.length)) body.append(splitPicker(g, data, shared));
     box.append(el);
   });
+}
+
+function fields(container, obj, idBase, about) {
+  FIELDS.forEach(([k, label, ph]) => {
+    const f = document.createElement('div'); f.className = 'f';
+    const rich = document.createElement('div');
+    rich.className = 'rich'; rich.contentEditable = 'true'; rich.dataset.ph = ph; rich.id = `${idBase}-${k}`;
+    rich.setAttribute('aria-label', `${label} for ${about}`);
+    f.append(label, toolbar(rich), rich);
+    richField(rich, () => obj[k], v => { obj[k] = v; });
+    container.append(f);
+  });
+}
+
+// "Different plan for some periods": pick blocks, then they get their own Due / In class / Homework
+function splitPicker(g, data, shared) {
+  const D = div(), wrap = document.createElement('div');
+  wrap.className = 'split-pick';
+  const open = document.createElement('button');
+  open.type = 'button'; open.className = 'ghost';
+  open.textContent = `+ Different plan for some ${D.unit.toLowerCase()}s`;
+  wrap.append(open);
+  open.onclick = () => {
+    const chosen = new Set();
+    wrap.innerHTML = `<span class="hint">Which ${D.unit.toLowerCase()}s?</span>`;
+    shared.forEach(b => {
+      const c = document.createElement('button'); c.type = 'button'; c.textContent = D.short + b;
+      c.setAttribute('aria-pressed', 'false');
+      c.onclick = () => { chosen.has(b) ? chosen.delete(b) : chosen.add(b); c.classList.toggle('on'); c.setAttribute('aria-pressed', chosen.has(b)); };
+      wrap.append(c);
+    });
+    const add = document.createElement('button'); add.type = 'button'; add.className = 'primary'; add.textContent = 'Add plan';
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'ghost'; cancel.textContent = 'Cancel';
+    add.onclick = () => {
+      if (!chosen.size) { flash(`Pick at least one ${D.unit.toLowerCase()}.`); return; }
+      // start from a copy of the shared plan so only the differences need typing
+      data.splits.push({ blocks: shared.filter(b => chosen.has(b)), due: data.due, inclass: data.inclass, hw: data.hw });
+      save(); renderGroups(); renderPreview();
+    };
+    cancel.onclick = () => renderGroups();
+    wrap.append(add, cancel);
+  };
+  return wrap;
 }
 
 /* ---------- agenda output ---------- */
@@ -445,16 +562,27 @@ function agendaHTML() {
     h += `<hr><p><strong>${esc(heading(g))}</strong>`;
     if (state.showTimes) h += `<br><em>${esc(meetLine(g))}</em>`;
     h += '</p>';
-    [['due', 'Due'], ['inclass', 'In class'], ['hw', 'Homework']].forEach(([k, label]) => {
-      const v = data[k];
-      if (isEmpty(v)) { if (k !== 'inclass') h += `<p><strong>${label}:</strong> None</p>`; return; }
-      // keep a one-line answer on the label line
-      const inline = /^<p>((?:(?!<\/?p>).)*)<\/p>$/s.exec(v.trim()) || (!/<(p|ul|ol)\b/i.test(v) && [0, v]);
-      h += inline ? `<p><strong>${label}:</strong> ${inline[1]}</p>` : `<p><strong>${label}:</strong></p>${v}`;
-    });
+    const splits = (data.splits || []).filter(s => s.blocks.length);
+    const shared = sharedBlocks(g, data);
+    if (!splits.length) h += fieldsHTML(data);
+    else {
+      if (shared.length) h += `<p><strong><u>${esc(plist(shared))}</u></strong></p>` + fieldsHTML(data);
+      splits.forEach(s => { h += `<p><strong><u>${esc(plist(s.blocks))}</u></strong></p>` + fieldsHTML(s); });
+    }
   });
   if (!isEmpty(w.closing)) h += '<hr>' + w.closing;
   if (state.signoff.trim()) h += `<p>${esc(state.signoff.trim()).replace(/\n/g, '<br>')}</p>`;
+  return h;
+}
+function fieldsHTML(data) {
+  let h = '';
+  FIELDS.forEach(([k, label]) => {
+    const v = data[k];
+    if (isEmpty(v)) { if (k !== 'inclass') h += `<p><strong>${label}:</strong> None</p>`; return; }
+    // keep a one-line answer on the label line
+    const inline = /^<p>((?:(?!<\/?p>).)*)<\/p>$/s.exec(v.trim()) || (!/<(p|ul|ol)\b/i.test(v) && [0, v]);
+    h += inline ? `<p><strong>${label}:</strong> ${inline[1]}</p>` : `<p><strong>${label}:</strong></p>${v}`;
+  });
   return h;
 }
 function renderPreview() { $('preview').innerHTML = agendaHTML(); }
