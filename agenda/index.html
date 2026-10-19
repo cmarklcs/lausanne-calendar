@@ -66,7 +66,7 @@ button.icon { padding: 6px 10px; line-height: 1; }
 
 .periods { display: flex; gap: 6px; flex-wrap: wrap; }
 .periods label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--field); border-radius: 99px; padding: 5px 12px; font-size: 14px; font-weight: 700; color: var(--fg); cursor: pointer; }
-.periods label:has(input:checked) { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.periods label:has(input:checked) { background: var(--chip, var(--accent)); color: var(--chip-ink, var(--accent-fg)); border-color: var(--chip-edge, var(--accent)); box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent); }
 .periods input { position: absolute; opacity: 0; pointer-events: none; }
 .periods label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
 
@@ -86,7 +86,7 @@ button.icon { padding: 6px 10px; line-height: 1; }
 .group-head b { font: 700 15px/1.25 var(--font-display); color: var(--lc-blue); }
 .group-head span { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .group-body { padding: 12px 14px; display: grid; gap: 10px; }
-.plan-tag { display: inline-block; font: 700 11px/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; margin-right: 6px; vertical-align: 2px; color: #1b2430; }
+.plan-tag { background: var(--panel); border: 1px solid var(--lc-blue); display: inline-block; font: 700 11px/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; margin-right: 6px; vertical-align: 2px; color: var(--lc-blue); }
 .split { border-left: 3px solid var(--line); padding-left: 12px; display: grid; gap: 10px; }
 .split-head { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-weight: 700; color: var(--lc-blue); }
 .split-pick { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -96,7 +96,14 @@ button.icon { padding: 6px 10px; line-height: 1; }
 .wk-grid { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(104px, 1fr); gap: 8px; min-width: 0; }
 .wk-day { display: grid; gap: 6px; align-content: start; }
 .wk-day h3 { margin: 0; font: 700 13px/1.25 var(--font-body); }
-.wk-day h3 small { display: block; font-weight: 400; color: var(--muted); }
+.wk-day h3 small { display: block; margin-top: 3px; }
+.day-pill { display: inline-block; font: 700 11.5px/1 var(--font-body); padding: 4px 7px; border-radius: 99px; letter-spacing: .02em; white-space: nowrap; }
+.wk-cls.light { border-color: rgba(27,36,48,.18); }
+.meet { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-top: 4px; }
+.meet-day { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.blk { display: inline-block; font: 700 12px/1 var(--font-body); padding: 4px 6px; border-radius: 4px; font-variant-numeric: tabular-nums; }
+.blk small { font-weight: 400; }
+.blk.light { box-shadow: inset 0 0 0 1px rgba(27,36,48,.18); }
 .wk-day.next h3 { color: var(--muted); }
 .wk-cls { display: grid; gap: 1px; text-align: left; padding: 6px 8px; border-radius: 6px; border: 1px solid transparent; color: #1b2430; font-size: 13px; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .wk-cls b { font-size: 14px; }
@@ -159,7 +166,7 @@ button.icon { padding: 6px 10px; line-height: 1; }
 
     <section class="card" aria-labelledby="gridH">
       <h2 id="gridH">Your week at a glance</h2>
-      <p class="hint">Each color is one plan below. Click a class to mark it as not meeting (assembly, testing, a trip), and the plans adjust.</p>
+      <p class="hint">Colors match the school schedule, and each class shows which plan below it gets. Click a class to mark it as not meeting (assembly, testing, a trip), and the plans adjust.</p>
       <div class="wk" id="weekGrid"></div>
     </section>
 
@@ -188,11 +195,16 @@ button.icon { padding: 6px 10px; line-height: 1; }
 /* ---------- school data ---------- */
 // Upper School six-period Blue/Gold block schedule: periods in the order they meet each rotation day
 const US_SLOTS = ['8:50', '10:40', '2:15'];
+const MS_COLORS = { Red: '#D7102E', Orange: '#F08A1F', Yellow: '#FDD000', Green: '#6B9C3A', Blue: '#0A86AB', Indigo: '#232A5C', Violet: '#5A1F45' };
 const DIVISIONS = {
   US: {
     name: 'Upper School', unit: 'Period', short: 'P', blocks: [1, 2, 3, 4, 5, 6], grouping: 'pair', dayLabel: 'US Day',
     byDay: { 1: [1, 3, 5], 2: [2, 4, 6], 3: [3, 5, 1], 4: [4, 6, 2], 5: [5, 1, 3], 6: [6, 2, 4] },
     times: US_SLOTS,
+    // Blue days are odd, Gold days are even; period colors from the Blue/Gold block chart
+    dayColor: rd => rd % 2 ? '#0079A4' : '#FCC800',
+    dayName: rd => `${rd % 2 ? 'Blue' : 'Gold'} Day ${rd}`,
+    blockColor: { 1: '#E8F5FC', 2: '#FDF0C8', 3: '#94C9DE', 4: '#FDE07A', 5: '#5AAFC9', 6: '#FCC800' },
     rotation: {"2026-08-10":1,"2026-08-11":2,"2026-08-12":3,"2026-08-13":4,"2026-08-14":5,"2026-08-17":6,"2026-08-18":1,"2026-08-19":2,"2026-08-20":3,"2026-08-21":4,"2026-08-31":5,"2026-09-01":6,"2026-09-02":1,"2026-09-03":2,"2026-09-04":3,"2026-09-08":4,"2026-09-09":5,"2026-09-10":6,"2026-09-11":1,"2026-09-14":2,"2026-09-15":3,"2026-09-16":4,"2026-09-17":5,"2026-09-18":6,"2026-09-21":1,"2026-09-22":2,"2026-09-23":3,"2026-09-24":4,"2026-09-28":5,"2026-09-29":6,"2026-09-30":1,"2026-10-01":2,"2026-10-02":3,"2026-10-05":4,"2026-10-06":5,"2026-10-07":6,"2026-10-13":1,"2026-10-14":2,"2026-10-15":3,"2026-10-16":4,"2026-10-19":5,"2026-10-20":6,"2026-10-21":1,"2026-10-22":2,"2026-10-23":3,"2026-10-26":4,"2026-10-27":5,"2026-10-28":6,"2026-10-29":1,"2026-10-30":2,"2026-11-02":3,"2026-11-03":4,"2026-11-04":5,"2026-11-05":6,"2026-11-09":1,"2026-11-10":2,"2026-11-11":3,"2026-11-12":4,"2026-11-13":5,"2026-11-16":6,"2026-11-17":1,"2026-11-18":2,"2026-11-19":3,"2026-11-20":4,"2026-11-30":5,"2026-12-01":6,"2026-12-02":1,"2026-12-03":2,"2026-12-04":3,"2026-12-07":4,"2026-12-08":5,"2026-12-09":6,"2026-12-10":1,"2026-12-11":2,"2026-12-14":3,"2026-12-15":4,"2026-12-16":5,"2026-12-17":6,"2026-12-18":1,"2027-01-04":2,"2027-01-05":3,"2027-01-06":4,"2027-01-07":5,"2027-01-08":6,"2027-01-11":1,"2027-01-12":2,"2027-01-13":3,"2027-01-14":4,"2027-01-15":5,"2027-01-19":6,"2027-01-20":1,"2027-01-21":2,"2027-01-25":3,"2027-01-26":4,"2027-01-27":5,"2027-01-28":6,"2027-01-29":1,"2027-02-01":2,"2027-02-02":3,"2027-02-03":4,"2027-02-04":5,"2027-02-05":6,"2027-02-08":1,"2027-02-09":2,"2027-02-10":3,"2027-02-11":4,"2027-02-16":5,"2027-02-17":6,"2027-02-18":1,"2027-02-19":2,"2027-02-22":3,"2027-02-23":4,"2027-02-24":5,"2027-02-25":6,"2027-02-26":1,"2027-03-01":2,"2027-03-02":3,"2027-03-03":4,"2027-03-04":5,"2027-03-05":6,"2027-03-15":1,"2027-03-16":2,"2027-03-17":3,"2027-03-18":4,"2027-03-19":5,"2027-03-22":6,"2027-03-23":1,"2027-03-24":2,"2027-03-29":3,"2027-03-30":4,"2027-03-31":5,"2027-04-01":6,"2027-04-02":1,"2027-04-05":2,"2027-04-06":3,"2027-04-07":4,"2027-04-08":5,"2027-04-09":6,"2027-04-12":1,"2027-04-13":2,"2027-04-14":3,"2027-04-15":4,"2027-04-16":5,"2027-04-19":6,"2027-04-20":1,"2027-04-21":2,"2027-04-26":3,"2027-04-27":4,"2027-04-28":5,"2027-04-29":6,"2027-04-30":1,"2027-05-03":2,"2027-05-04":3,"2027-05-05":4,"2027-05-06":5,"2027-05-07":6,"2027-05-10":1,"2027-05-11":2,"2027-05-12":3,"2027-05-13":4,"2027-05-14":5,"2027-05-17":6,"2027-05-18":1,"2027-05-19":2,"2027-05-20":3,"2027-05-21":4,"2027-05-24":5,"2027-05-25":6,"2027-05-26":1,"2027-05-27":2,"2027-05-28":3}
   },
   // Middle School seven-day color rotation: blocks in the order they meet on each color day
@@ -203,6 +215,10 @@ const DIVISIONS = {
       'Violet 7': [7, 1, 2, 3, 4], 'Blue 5': [5, 6, 7, 1, 2], 'Yellow 3': [3, 4, 5, 6, 7]
     },
     times: ['8:30', '9:50', '10:55', '1:20', '2:20'],
+    // each color day takes its name's color; each block keeps its color from the MS schedule chart
+    dayColor: rd => MS_COLORS[rd.split(' ')[0]],
+    dayName: rd => rd,
+    blockColor: { 1: '#D7102E', 2: '#F08A1F', 3: '#FDD000', 4: '#6B9C3A', 5: '#0A86AB', 6: '#232A5C', 7: '#5A1F45' },
     rotation: {"2026-11-09":"Green 4","2026-11-10":"Orange 2","2026-11-11":"Violet 7","2026-11-12":"Blue 5","2026-11-13":"Yellow 3","2026-11-16":"Red 1","2026-11-17":"Indigo 6","2026-11-18":"Green 4","2026-11-19":"Orange 2","2026-08-11":"Red 1","2026-08-12":"Indigo 6","2026-08-13":"Green 4","2026-08-14":"Orange 2","2026-08-17":"Violet 7","2026-08-18":"Blue 5","2026-08-19":"Yellow 3","2026-08-20":"Red 1","2026-08-21":"Indigo 6","2026-08-24":"Green 4","2026-08-25":"Orange 2","2026-08-26":"Violet 7","2026-08-27":"Blue 5","2026-08-28":"Yellow 3","2026-08-31":"Red 1","2026-09-01":"Indigo 6","2026-09-02":"Green 4","2026-09-03":"Orange 2","2026-09-04":"Violet 7","2026-09-08":"Blue 5","2026-09-09":"Yellow 3","2026-09-10":"Red 1","2026-09-11":"Indigo 6","2026-09-14":"Green 4","2026-09-15":"Orange 2","2026-09-16":"Violet 7","2026-09-17":"Blue 5","2026-09-18":"Yellow 3","2026-09-21":"Red 1","2026-09-22":"Indigo 6","2026-09-23":"Green 4","2026-09-24":"Orange 2","2026-09-28":"Violet 7","2026-09-29":"Blue 5","2026-09-30":"Yellow 3","2026-10-01":"Red 1","2026-10-02":"Indigo 6","2026-10-05":"Green 4","2026-10-06":"Orange 2","2026-10-07":"Violet 7","2026-10-13":"Blue 5","2026-10-14":"Yellow 3","2026-10-15":"Red 1","2026-10-16":"Indigo 6","2026-10-19":"Green 4","2026-10-20":"Orange 2","2026-10-21":"Violet 7","2026-10-22":"Blue 5","2026-10-23":"Yellow 3","2026-10-26":"Red 1","2026-10-27":"Indigo 6","2026-10-28":"Green 4","2026-10-29":"Orange 2","2026-10-30":"Violet 7","2026-11-02":"Blue 5","2026-11-03":"Yellow 3","2026-11-04":"Red 1","2026-11-05":"Indigo 6","2026-11-30":"Violet 7","2026-12-01":"Blue 5","2026-12-02":"Yellow 3","2026-12-03":"Red 1","2026-12-04":"Indigo 6","2026-12-07":"Green 4","2026-12-08":"Orange 2","2026-12-09":"Violet 7","2026-12-10":"Blue 5","2026-12-11":"Yellow 3","2026-12-14":"Red 1","2026-12-15":"Indigo 6","2026-12-16":"Green 4","2026-12-17":"Orange 2","2026-12-18":"Violet 7","2027-01-04":"Blue 5","2027-01-05":"Yellow 3","2027-01-06":"Red 1","2027-01-07":"Indigo 6","2027-01-08":"Green 4","2027-01-11":"Orange 2","2027-01-12":"Violet 7","2027-01-13":"Blue 5","2027-01-14":"Yellow 3","2027-01-15":"Red 1","2027-01-19":"Indigo 6","2027-01-20":"Green 4","2027-01-21":"Orange 2","2027-01-25":"Violet 7","2027-01-26":"Blue 5","2027-01-27":"Yellow 3","2027-01-28":"Red 1","2027-01-29":"Indigo 6","2027-02-01":"Green 4","2027-02-02":"Orange 2","2027-02-03":"Violet 7","2027-02-04":"Blue 5","2027-02-05":"Yellow 3","2027-02-08":"Red 1","2027-02-09":"Indigo 6","2027-02-10":"Green 4","2027-02-11":"Orange 2","2027-02-16":"Violet 7","2027-02-17":"Blue 5","2027-02-18":"Yellow 3","2027-02-19":"Red 1","2027-02-22":"Indigo 6","2027-02-23":"Green 4","2027-02-24":"Orange 2","2027-02-25":"Violet 7","2027-02-26":"Blue 5","2027-03-01":"Yellow 3","2027-03-02":"Red 1","2027-03-03":"Indigo 6","2027-03-04":"Green 4","2027-03-05":"Orange 2","2027-03-15":"Violet 7","2027-03-16":"Blue 5","2027-03-17":"Yellow 3","2027-03-18":"Red 1","2027-03-19":"Indigo 6","2027-03-22":"Green 4","2027-03-23":"Orange 2","2027-03-24":"Violet 7","2027-03-29":"Blue 5","2027-03-30":"Yellow 3","2027-03-31":"Red 1","2027-04-01":"Indigo 6","2027-04-02":"Green 4","2027-04-05":"Orange 2","2027-04-06":"Violet 7","2027-04-07":"Blue 5","2027-04-08":"Yellow 3","2027-04-09":"Red 1","2027-04-12":"Indigo 6","2027-04-13":"Green 4","2027-04-14":"Orange 2","2027-04-15":"Violet 7","2027-04-16":"Blue 5","2027-04-19":"Yellow 3","2027-04-20":"Red 1","2027-04-21":"Indigo 6","2027-04-22":"Green 4","2027-04-26":"Orange 2","2027-04-27":"Violet 7","2027-04-28":"Blue 5","2027-04-29":"Yellow 3","2027-04-30":"Red 1","2027-05-03":"Indigo 6","2027-05-04":"Green 4","2027-05-05":"Orange 2","2027-05-06":"Violet 7","2027-05-07":"Blue 5","2027-05-10":"Yellow 3","2027-05-11":"Red 1","2027-05-12":"Indigo 6","2027-05-13":"Green 4","2027-05-14":"Orange 2","2027-05-17":"Violet 7","2027-05-18":"Blue 5","2027-05-19":"Yellow 3","2027-05-20":"Red 1","2027-05-21":"Indigo 6","2027-05-24":"Green 4","2027-05-25":"Orange 2","2027-05-26":"Violet 7","2027-05-27":"Blue 5","2027-05-28":"Yellow 3"}
   }
 };
@@ -420,9 +436,16 @@ function linkBox(done) {
   return box;
 }
 
+/* ---------- colors ---------- */
+// dark text on light colors, white on dark ones
+function inkOn(hex) {
+  const n = parseInt(hex.slice(1), 16), [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255].map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; });
+  return .2126 * r + .7152 * g + .0722 * b > .32 ? '#1b2430' : '#ffffff';
+}
+const blockStyle = b => { const c = div().blockColor[b]; return `background:${c};color:${inkOn(c)}`; };
+const dayPill = date => { const D = div(), rd = D.rotation[date], c = D.dayColor(rd); return `<span class="day-pill" style="background:${c};color:${inkOn(c)}">${esc(D.dayName(rd))}</span>`; };
+
 /* ---------- plans ---------- */
-const PLAN_COLORS = ['#cfe3f3', '#fde9a6', '#d6ebc9', '#f6d2cf', '#e3d6ef', '#fbdcbd', '#d5e9e7'];
-const planColor = i => PLAN_COLORS[i % PLAN_COLORS.length];
 const groupBlocks = g => [...new Set(g.meetings.flatMap(m => m.list.map(x => x.block)))];
 // blocks that follow the shared plan, once some have their own
 const sharedBlocks = (g, data) => groupBlocks(g).filter(b => !(data.splits || []).some(s => s.blocks.includes(b)));
@@ -441,11 +464,10 @@ function renderGrid() {
   box.innerHTML = `<div class="wk-grid">${days.map(d => {
     // days after Friday only show the classes that finish this week's plans
     const list = meetingsOn(d, true).filter(x => week.includes(d) || plan[d + '|' + x.block] !== undefined);
-    const label = D.grouping === 'pair' ? `${D.dayLabel} ${D.rotation[d]}` : D.rotation[d];
-    return `<div class="wk-day${week.includes(d) ? '' : ' next'}"><h3>${short(d)}<small>${esc(label)}</small></h3>${list.length ? list.map(x => {
+    return `<div class="wk-day${week.includes(d) ? '' : ' next'}"><h3>${short(d)}<small>${dayPill(d)}</small></h3>${list.length ? list.map(x => {
       const i = plan[d + '|' + x.block];
       const what = x.skipped ? 'No class' : i === undefined ? '' : `Plan ${i + 1}`;
-      return `<button type="button" class="wk-cls${x.skipped ? ' off' : ''}" data-d="${d}" data-b="${x.block}" style="background:${i === undefined ? 'var(--field)' : planColor(i)}" aria-pressed="${x.skipped}" title="${x.skipped ? 'Click to mark as meeting again' : 'Click to mark as not meeting'}"><b>${D.short}${x.block} <small>${D.times[x.slot]}</small></b><span>${what}</span></button>`;
+      return `<button type="button" class="wk-cls${x.skipped ? ' off' : ''}${inkOn(D.blockColor[x.block]) !== '#ffffff' ? ' light' : ''}" data-d="${d}" data-b="${x.block}" style="${blockStyle(x.block)}" aria-pressed="${x.skipped}" title="${x.skipped ? 'Click to mark as meeting again' : 'Click to mark as not meeting'}"><b>${D.short}${x.block} <small>${D.times[x.slot]}</small></b><span>${what}</span></button>`;
     }).join('') : '<p class="wk-none">No classes</p>'}</div>`;
   }).join('')}</div>`;
   box.querySelectorAll('.wk-cls').forEach(btn => btn.onclick = () => {
@@ -470,7 +492,7 @@ function renderSetup() {
   $('modeWrap').hidden = div().grouping === 'pair';
   $('msMode').value = state.msMode;
   $('periodsLabel').textContent = `${div().unit}s you teach this course`;
-  $('periods').innerHTML = div().blocks.map(b => `<label><input type="checkbox" value="${b}" ${state.periods.includes(b) ? 'checked' : ''}>${div().short}${b}</label>`).join('');
+  $('periods').innerHTML = div().blocks.map(b => { const c = div().blockColor[b]; return `<label style="--chip:${c};--chip-ink:${inkOn(c)};--chip-edge:${c}"><input type="checkbox" value="${b}" ${state.periods.includes(b) ? 'checked' : ''}>${div().short}${b}</label>`; }).join('');
   $('periods').querySelectorAll('input').forEach(inp => inp.addEventListener('change', () => {
     state.periods = [...$('periods').querySelectorAll('input:checked')].map(i => +i.value);
     save(); renderGroups(); renderPreview();
@@ -502,7 +524,7 @@ function renderGroups() {
     data.splits = data.splits.filter(s => s.blocks.length);
     const el = document.createElement('section');
     el.className = 'group';
-    el.innerHTML = `<div class="group-head"><b><span class="plan-tag" style="background:${planColor(gi)}">Plan ${gi + 1}</span>${esc(heading(g))}</b><span>${esc(meetLine(g))}</span></div><div class="group-body"></div>`;
+    el.innerHTML = `<div class="group-head"><b><span class="plan-tag">Plan ${gi + 1}</span>${esc(heading(g))}</b>${meetHTML(g)}</div><div class="group-body"></div>`;
     const body = el.querySelector('.group-body');
     const shared = sharedBlocks(g, data);
     if (data.splits.length && shared.length) {
@@ -520,6 +542,14 @@ function renderGroups() {
     if (shared.length > 1 || (shared.length && data.splits.length)) body.append(splitPicker(g, data, shared));
     box.append(el);
   });
+}
+
+// the group's meetings as colored day pills and block chips
+function meetHTML(g) {
+  const D = div();
+  const days = g.meetings.filter(m => m.list.length).map(m => `<span class="meet-day">${short(m.date)} ${dayPill(m.date)} ${m.list.map(x => `<span class="blk${inkOn(D.blockColor[x.block]) !== '#ffffff' ? ' light' : ''}" style="${blockStyle(x.block)}">${D.short}${x.block} <small>${D.times[x.slot]}</small></span>`).join(' ')}</span>`);
+  const off = g.skipped.map(s => `<span class="meet-day">${D.short}${s.block} no class ${short(s.date)}</span>`);
+  return `<div class="meet">${days.concat(off).join('')}</div>`;
 }
 
 function fields(container, obj, idBase, about) {
