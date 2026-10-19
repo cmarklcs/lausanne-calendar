@@ -86,6 +86,10 @@ button.icon { padding: 6px 10px; line-height: 1; }
 .group-head b { font: 700 15px/1.25 var(--font-display); color: var(--lc-blue); }
 .group-head span { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .group-body { padding: 12px 14px; display: grid; gap: 10px; }
+.gridbox > summary { cursor: pointer; font: 700 16px/1.2 var(--font-display); list-style: none; }
+.gridbox > summary::before { content: "▸ "; color: var(--muted); }
+.gridbox[open] > summary::before { content: "▾ "; }
+.gridbox > summary .hint { font: 400 13px var(--font-body); }
 .plan-tag { background: var(--panel); border: 1px solid var(--lc-blue); display: inline-block; font: 700 11px/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; margin-right: 6px; vertical-align: 2px; color: var(--lc-blue); }
 .split { border-left: 3px solid var(--line); padding-left: 12px; display: grid; gap: 10px; }
 .split-head { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-weight: 700; color: var(--lc-blue); }
@@ -147,7 +151,8 @@ button.icon { padding: 6px 10px; line-height: 1; }
         <option value="lesson">Lesson: each block moves through lessons at its own pace</option>
       </select></label>
       <div class="f"><span id="periodsLabel">Periods you teach this course</span><div class="periods" id="periods"></div></div>
-      <label class="f" style="display:flex;gap:8px;align-items:center;font-weight:400;color:var(--fg)"><input type="checkbox" id="showTimes"> Show the day and time each period meets</label>
+      <label class="f" style="display:flex;gap:8px;align-items:center;font-weight:400;color:var(--fg)"><input type="checkbox" id="dueList"> Start the post with a “Due this week” list, by day</label>
+      <label class="f" style="display:flex;gap:8px;align-items:center;font-weight:400;color:var(--fg)"><input type="checkbox" id="showTimes"> Add class times under each heading</label>
       <label class="f">Sign-off<textarea id="signoff" rows="2" placeholder="e.g. Best,&#10;Ms. Smith"></textarea></label>
     </section>
 
@@ -164,11 +169,11 @@ button.icon { padding: 6px 10px; line-height: 1; }
       <div class="f">Extra section (optional)<div class="rich" id="extra" contenteditable="true" data-ph="Anything else: a reminder, a joke of the week…"></div></div>
     </section>
 
-    <section class="card" aria-labelledby="gridH">
-      <h2 id="gridH">Your week at a glance</h2>
-      <p class="hint">Colors match the school schedule, and each class shows which plan below it gets. Click a class to mark it as not meeting (assembly, testing, a trip), and the plans adjust.</p>
+    <details class="card gridbox" id="gridBox">
+      <summary id="gridH">Show my week <span class="hint">· mark a class that isn’t meeting</span></summary>
+      <p class="hint">Colors match the school schedule. Click a class to mark it as not meeting (assembly, testing, a trip), and the plans below adjust.</p>
       <div class="wk" id="weekGrid"></div>
-    </section>
+    </details>
 
     <div class="stack" id="groups"></div>
 
@@ -241,7 +246,7 @@ const $ = id => document.getElementById(id);
 /* ---------- state ---------- */
 const EXAMPLE_WEEK = '2026-10-19';
 const EXAMPLE = {
-  division: 'US', teacher: '', course: 'English 9 (example)', periods: [1, 2, 6], showTimes: true,
+  division: 'US', teacher: '', course: 'English 9 (example)', periods: [1, 2, 6], showTimes: false, dueList: true, v: 3,
   signoff: 'Best,\nMs. Example',
   week: EXAMPLE_WEEK,
   weeks: {
@@ -263,6 +268,8 @@ if (!DIVISIONS[state.division]) state.division = 'US';
 if (!state.week) state.week = mondayOf(iso(new Date()));
 state.skips ||= {};
 state.msMode ||= 'day';
+// older saves: times were on by default; the simpler post leaves them off and adds the due list
+if (state.v !== 3) { state.showTimes = false; state.dueList = true; state.v = 3; }
 function load() { try { const s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* storage blocked */ } }
 // each course keeps its own plan for each week
@@ -403,13 +410,14 @@ function richField(el, get, set) {
   });
   el.addEventListener('blur', () => { const c = clean(el.innerHTML); set(c); save(); renderPreview(); });
 }
-function toolbar(target) {
+function toolbar(getTarget) {
   const t = document.createElement('div');
   t.className = 'tools';
   t.innerHTML = `<button type="button" data-c="bold"><b>Bold</b></button><button type="button" data-c="insertUnorderedList">• List</button><button type="button" data-c="link">Link</button>`;
   t.addEventListener('mousedown', e => e.preventDefault());
   t.addEventListener('click', e => {
     const c = e.target.closest('button')?.dataset.c; if (!c) return;
+    const target = getTarget();
     target.focus();
     if (c === 'link') {
       const sel = getSelection();
@@ -466,7 +474,7 @@ function renderGrid() {
     const list = meetingsOn(d, true).filter(x => week.includes(d) || plan[d + '|' + x.block] !== undefined);
     return `<div class="wk-day${week.includes(d) ? '' : ' next'}"><h3>${short(d)}<small>${dayPill(d)}</small></h3>${list.length ? list.map(x => {
       const i = plan[d + '|' + x.block];
-      const what = x.skipped ? 'No class' : i === undefined ? '' : `Plan ${i + 1}`;
+      const what = x.skipped ? 'No class' : i === undefined || mode() !== 'lesson' ? '' : `Lesson ${i + 1}`;
       return `<button type="button" class="wk-cls${x.skipped ? ' off' : ''}${inkOn(D.blockColor[x.block]) !== '#ffffff' ? ' light' : ''}" data-d="${d}" data-b="${x.block}" style="${blockStyle(x.block)}" aria-pressed="${x.skipped}" title="${x.skipped ? 'Click to mark as meeting again' : 'Click to mark as not meeting'}"><b>${D.short}${x.block} <small>${D.times[x.slot]}</small></b><span>${what}</span></button>`;
     }).join('') : '<p class="wk-none">No classes</p>'}</div>`;
   }).join('')}</div>`;
@@ -489,6 +497,7 @@ function renderSetup() {
   $('course').value = state.course;
   $('signoff').value = state.signoff;
   $('showTimes').checked = !!state.showTimes;
+  $('dueList').checked = state.dueList !== false;
   $('modeWrap').hidden = div().grouping === 'pair';
   $('msMode').value = state.msMode;
   $('periodsLabel').textContent = `${div().unit}s you teach this course`;
@@ -524,8 +533,11 @@ function renderGroups() {
     data.splits = data.splits.filter(s => s.blocks.length);
     const el = document.createElement('section');
     el.className = 'group';
-    el.innerHTML = `<div class="group-head"><b><span class="plan-tag">Plan ${gi + 1}</span>${esc(heading(g))}</b>${meetHTML(g)}</div><div class="group-body"></div>`;
+    el.innerHTML = `<div class="group-head"><b>${mode() === 'lesson' ? `<span class="plan-tag">Lesson ${gi + 1}</span>` : ''}${esc(heading(g))}</b>${meetHTML(g)}</div><div class="group-body"></div>`;
     const body = el.querySelector('.group-body');
+    let last = null;
+    body.addEventListener('focusin', e => { if (e.target.classList?.contains('rich')) last = e.target; });
+    body.append(toolbar(() => last || body.querySelector('.rich')));
     const shared = sharedBlocks(g, data);
     if (data.splits.length && shared.length) {
       const h4 = document.createElement('div'); h4.className = 'split-head'; h4.textContent = plist(shared);
@@ -558,7 +570,7 @@ function fields(container, obj, idBase, about) {
     const rich = document.createElement('div');
     rich.className = 'rich'; rich.contentEditable = 'true'; rich.dataset.ph = ph; rich.id = `${idBase}-${k}`;
     rich.setAttribute('aria-label', `${label} for ${about}`);
-    f.append(label, toolbar(rich), rich);
+    f.append(label, rich);
     richField(rich, () => obj[k], v => { obj[k] = v; });
     container.append(f);
   });
@@ -601,6 +613,7 @@ function agendaHTML() {
   const m = fromIso(state.week);
   let h = `<p><strong>${esc(state.course || 'Weekly agenda')} – Week of ${MONTHS[m.getMonth()]} ${ordinal(m.getDate())}${taught().length ? ` (${plist(taught())})` : ''}</strong></p>`;
   if (!isEmpty(w.intro)) h += w.intro;
+  if (state.dueList !== false) h += dueHTML(gs, w);
   if (!isEmpty(w.extra)) h += '<hr>' + w.extra;
   gs.forEach(g => {
     const data = w.groups[g.key] || {};
@@ -618,6 +631,32 @@ function agendaHTML() {
   if (!isEmpty(w.closing)) h += '<hr>' + w.closing;
   if (state.signoff.trim()) h += `<p>${esc(state.signoff.trim()).replace(/\n/g, '<br>')}</p>`;
   return h;
+}
+// Everything typed in a Due box, listed by the day each block turns it in
+function dueHTML(gs, w) {
+  const byDate = {};
+  gs.forEach(g => {
+    const data = w.groups[g.key] || {};
+    g.meetings.forEach(m => m.list.forEach(x => {
+      const src = (data.splits || []).find(s => s.blocks.includes(x.block)) || data;
+      if (isEmpty(src.due)) return;
+      const list = (byDate[m.date] ||= []);
+      const same = list.find(e => e.html === src.due);
+      same ? same.blocks.push(x.block) : list.push({ html: src.due, blocks: [x.block] });
+    }));
+  });
+  const dates = Object.keys(byDate).sort();
+  if (!dates.length) return '';
+  const items = dates.flatMap(d => byDate[d].map(e => `<li><strong>${short(d)}</strong> (${esc(plist([...e.blocks].sort((x, y) => x - y)))}): ${oneLine(e.html)}</li>`));
+  return `<hr><p><strong>Due this week</strong></p><ul>${items.join('')}</ul>`;
+}
+// fold paragraphs and bullets into one line for the due list, keeping links and bold
+function oneLine(html) {
+  const t = document.createElement('div');
+  t.innerHTML = html;
+  t.querySelectorAll('li, p').forEach(el => { if (el.nextElementSibling || el.parentElement.nextElementSibling) el.append('; '); });
+  t.querySelectorAll('ul, ol, li, p').forEach(el => el.replaceWith(...el.childNodes));
+  return t.innerHTML.replace(/(;\s*)+$/, '').trim();
 }
 function fieldsHTML(data) {
   let h = '';
@@ -666,6 +705,7 @@ $('teacher').addEventListener('change', e => {
 $('pick').addEventListener('change', e => { const c = ((TEACHERS[state.division] || {})[state.teacher] || [])[+e.target.value]; if (c) pickCourse(c); });
 $('signoff').addEventListener('input', e => { state.signoff = e.target.value; save(); renderPreview(); });
 $('msMode').addEventListener('change', e => { state.msMode = e.target.value; save(); renderGroups(); renderPreview(); });
+$('dueList').addEventListener('change', e => { state.dueList = e.target.checked; save(); renderPreview(); });
 $('showTimes').addEventListener('change', e => { state.showTimes = e.target.checked; save(); renderPreview(); });
 ['intro', 'extra', 'closing'].forEach(k => richField($(k), () => weekData()[k], v => { weekData()[k] = v; }));
 function setWeek(s) { state.week = mondayOf(s); save(); renderWeek(); renderPreview(); }
@@ -680,6 +720,8 @@ $('clearWeek').onclick = () => {
   delete state.weeks[weekKey()]; save(); renderWeek(); renderPreview();
 };
 
+$('gridBox').open = !!state.gridOpen;
+$('gridBox').addEventListener('toggle', () => { state.gridOpen = $('gridBox').open; save(); });
 renderSetup();
 renderWeek();
 renderPreview();
