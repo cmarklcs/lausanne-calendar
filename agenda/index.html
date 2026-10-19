@@ -111,7 +111,11 @@ button.icon { padding: 6px 10px; line-height: 1; }
       <h2 id="setupH">Your class</h2>
       <div class="row">
         <label class="f">Division<select id="division"></select></label>
-        <label class="f">Course name<input type="text" id="course" placeholder="e.g. English 9"></label>
+        <label class="f">Your name<select id="teacher"></select></label>
+      </div>
+      <div class="row">
+        <label class="f" id="pickWrap">Course<select id="pick"></select></label>
+        <label class="f">Course name as students see it<input type="text" id="course" placeholder="e.g. English 9"></label>
       </div>
       <div class="f"><span id="periodsLabel">Periods you teach this course</span><div class="periods" id="periods"></div></div>
       <label class="f" style="display:flex;gap:8px;align-items:center;font-weight:400;color:var(--fg)"><input type="checkbox" id="showTimes"> Show the day and time each period meets</label>
@@ -175,7 +179,9 @@ const DIVISIONS = {
   }
 };
 
-const STORE_KEY = 'lausanne-weekly-agenda-v1';
+// Teachers and the courses and blocks they teach, from the MS and US class schedules
+const TEACHERS = {"MS":{"Maria Aldrich":[{"course":"English 8","blocks":[1,2,3,4,6]}],"Thomas Brezina":[{"course":"Earth Science 6","blocks":[1,3,5,6,7]}],"Kim Bullard":[{"course":"Design 8","blocks":[5]}],"Emily Curle":[{"course":"American History 7","blocks":[1,2,3,4,6]}],"Jauna Ellis":[{"course":"CPA 5th A","blocks":[1]},{"course":"CPA 5th B","blocks":[1]},{"course":"CPA 5th C","blocks":[1]},{"course":"CPA 6th A","blocks":[4]},{"course":"CPA 6th B","blocks":[4]},{"course":"CPA 6th C","blocks":[4]},{"course":"Expressive Arts 7/8","blocks":[7]},{"course":"Lynx Performing Ensemble","blocks":[3]}],"Kathryn Frank":[{"course":"Physical Science 8","blocks":[1,2,4,6,7]}],"Nancy Garriga":[{"course":"Ancient Hist 6","blocks":[1,2,3,5,7]}],"Kyle Gehringer":[{"course":"Math 8HL 8","blocks":[1,3,6]},{"course":"Math SL 8","blocks":[2,4]}],"Elizabeth Harcourt":[{"course":"Adv. Vis. Art 8","blocks":[5]},{"course":"Art 7th","blocks":[3]},{"course":"Art 8th","blocks":[7]},{"course":"Visual Art R 5","blocks":[1]},{"course":"Visual Art R 6","blocks":[4]},{"course":"Visual Arts R 5","blocks":[1]}],"Laney Hudson":[{"course":"English 6","blocks":[1,3,6,7]},{"course":"Spanish R 5","blocks":[5]}],"Amanda Khan":[{"course":"Integrated Sci 5","blocks":[2,3,4,7]}],"Pun Ding Lau":[{"course":"Spanish 6","blocks":[5,7]},{"course":"Spanish D 7","blocks":[1,4]},{"course":"Spanish E 7/8","blocks":[2]}],"Emilie Lee":[{"course":"PE 5/6","blocks":[2,6]},{"course":"PE 7/8","blocks":[3,5,7]}],"Susannah Livingston":[{"course":"Ancient Civ 5","blocks":[2,3,4,7]}],"Lainey Lunsford":[{"course":"Spanish 8th HL","blocks":[6]},{"course":"Spanish L 7","blocks":[5]},{"course":"Spanish L 8","blocks":[1,4]}],"Courtney Mark":[{"course":"Digital Design","blocks":[7]}],"Lisa Miller":[{"course":"EF 5","blocks":[5]},{"course":"Math SL 5","blocks":[3,4,6,7]}],"Jessica Osias":[{"course":"EF 5","blocks":[5]},{"course":"English 5","blocks":[3,4,6,7]}],"Bing Osterman-Carruth":[{"course":"7/8 Photography","blocks":[3]},{"course":"Dance 7/8","blocks":[7]},{"course":"Dance R 5","blocks":[1]},{"course":"Dance R 6","blocks":[4]}],"Kelci Pearce":[{"course":"Math 7 HL","blocks":[1,6]},{"course":"Math SL 7","blocks":[2,4,5]}],"Dwight Spain":[{"course":"World History 8","blocks":[1,2,4,6,7]}],"Michelle Spain":[{"course":"Math SL 8","blocks":[2]}],"Kalyn Underwood":[{"course":"Life Science 7","blocks":[1,2,4,5,6]}],"Jocelyn Vazquez":[{"course":"English 7","blocks":[1,2,3,4,6]}],"Jean Jacques Verdun":[{"course":"French 6","blocks":[3]},{"course":"French 7","blocks":[6]},{"course":"French 8","blocks":[1]},{"course":"French R 5","blocks":[5]}],"Twanna Washington":[{"course":"Math HL 6","blocks":[2,7]},{"course":"Math SL 6","blocks":[1,3,5]}],"Tara West":[{"course":"Band 5th","blocks":[1]},{"course":"Band 6","blocks":[4]},{"course":"Band 7/8","blocks":[7]}],"Ying Zhang":[{"course":"Mandarin 6","blocks":[7]},{"course":"Mandarin 7","blocks":[2]},{"course":"Mandarin 8","blocks":[4]},{"course":"Mandarin R 5","blocks":[5]}]},"US":{"Jonathan Auger":[{"course":"DP Design Tech HL - Year 2","blocks":[3]},{"course":"Industrial Design","blocks":[1,2,6]},{"course":"Product Design","blocks":[4]}],"Chelsea Baez":[{"course":"Spanish I","blocks":[2,4]},{"course":"Spanish II HL","blocks":[5]},{"course":"Spanish III SL","blocks":[3,6]}],"Lisa Bailey":[{"course":"DP Psychology HL - Year 2","blocks":[2]},{"course":"DP Psychology SL - Year 1","blocks":[5,6]},{"course":"DP Psychology SL - Year 2","blocks":[3,4]}],"Allison Benoit":[{"course":"American History","blocks":[1,2,4,5,6]}],"Maayan Castro Bolivar":[{"course":"DP Spanish ab initio SL - Year 1","blocks":[1,2]},{"course":"Spanish II SL","blocks":[3,4,6]}],"Victoria Brady":[{"course":"English 10","blocks":[3,4]},{"course":"English 9","blocks":[1,2,6]}],"Faunne Brown":[{"course":"DP Physics HL - Year 1","blocks":[6]},{"course":"DP Physics HL - Year 2","blocks":[2]},{"course":"DP Physics SL - Year 1","blocks":[5]},{"course":"DP Physics SL - Year 2","blocks":[4]},{"course":"Physics HL","blocks":[1]}],"Mackenzie Brown":[{"course":"DP Computer Science HL - Year 1","blocks":[1]},{"course":"DP Computer Science HL - Year 2","blocks":[6]},{"course":"E-Sports & Game Design","blocks":[5]},{"course":"Programming through Robotics","blocks":[3]},{"course":"Systems Design","blocks":[4]}],"Todd Cowden":[{"course":"Advanced Photography HL","blocks":[4,5]},{"course":"Multimedia Design","blocks":[3]},{"course":"Photography","blocks":[4,5]},{"course":"Problem Solving and Collaborating with AI","blocks":[2]}],"Jessica Green":[{"course":"Anatomy and Physiology","blocks":[3]},{"course":"Chemistry HL","blocks":[6]},{"course":"Chemistry SL","blocks":[1,2,5]}],"ShanShan Guo":[{"course":"DP Mandarin B SL - Year 1","blocks":[2]},{"course":"DP Mandarin B SL - Year 2","blocks":[5]},{"course":"Mandarin II HL","blocks":[6]},{"course":"Mandarin II SL","blocks":[1]},{"course":"Mandarin III HL","blocks":[3]},{"course":"Mandarin III SL","blocks":[3]}],"Beverly Gustafson":[{"course":"DP French B SL - Year 1","blocks":[2]},{"course":"DP French B SL - Year 2","blocks":[5]},{"course":"French II HL","blocks":[4]},{"course":"French II SL","blocks":[1]},{"course":"French III HL","blocks":[3]},{"course":"French III SL","blocks":[3]}],"Estes Hammons":[{"course":"DP Theater HL - Year 2","blocks":[1]}],"Clinton Hampton":[{"course":"DP Mathematics SL: Analysis and Approaches Y1","blocks":[1,3]},{"course":"DP Mathematics SL: Analysis and Approaches Y2","blocks":[2,6]}],"Karestin Harrison":[{"course":"Theatre Production","blocks":[5]}],"Brooke Hoffman":[{"course":"Biology HL","blocks":[2]},{"course":"Biology SL","blocks":[3,5,6]},{"course":"DP Biology SL - Year 1","blocks":[1]}],"Chary Jara":[{"course":"DP Spanish B SL - Year 1","blocks":[5]},{"course":"DP Spanish SL Y2","blocks":[6]},{"course":"Spanish II HL","blocks":[1,4]}],"Chase Kearl":[{"course":"DP Mathematics HL: Analysis and Approaches Y2","blocks":[6]},{"course":"DP Mathematics HL: Applications and Interpretations Y1","blocks":[3,4]},{"course":"DP Mathematics HL: Applications and Interpretations Y2","blocks":[1]},{"course":"Statistics Math 12","blocks":[5]}],"Walter Keel":[{"course":"Government and Personal Finance","blocks":[2]},{"course":"Grade 10 English for International Students","blocks":[1]}],"Carolina Larrumbe-Harbor":[{"course":"DP Spanish B SL - Year 1","blocks":[3]},{"course":"DP Spanish SL Y2","blocks":[5]},{"course":"Spanish III HL","blocks":[2,4]},{"course":"Spanish III SL","blocks":[1]}],"Collin Libassi":[{"course":"American History","blocks":[1]},{"course":"DP Business Management HL - Year 1","blocks":[6]},{"course":"DP Business Management HL - Year 2","blocks":[3]},{"course":"DP Business Management SL - Year 1","blocks":[4]},{"course":"DP Business Management SL - Year 2","blocks":[2]}],"Wade Linebaugh":[{"course":"DP English Literature HL - Year 2","blocks":[1]}],"Michelle Locastro":[{"course":"Math 9 HL","blocks":[4]},{"course":"Maths HL 9","blocks":[1,5]},{"course":"Maths SL 9","blocks":[2,3]}],"Kathryn Manzo":[{"course":"Atelier HL","blocks":[1]},{"course":"Atelier SL","blocks":[2,5]},{"course":"DP Visual Arts HL - Year 2","blocks":[3]},{"course":"DP Visual Arts HL Y1","blocks":[6]},{"course":"DP Visual Arts SL - Year 2","blocks":[3]},{"course":"DP Visual Arts SL Y1","blocks":[6]}],"Shelby Montague":[{"course":"DP Biology HL - Year 1","blocks":[4]},{"course":"DP Biology HL - Year 2","blocks":[2]}],"Evan Page":[{"course":"American History","blocks":[3]},{"course":"Facing History & Ourselves","blocks":[2]},{"course":"Modern World History","blocks":[4,5,6]}],"Mark Page":[{"course":"Chemistry HL","blocks":[5]},{"course":"DP Chemistry HL - Year 1","blocks":[1,3]},{"course":"DP Chemistry HL - Year 2","blocks":[4]},{"course":"DP Chemistry SL Y1","blocks":[2]}],"Mallory Perry":[{"course":"DP Chemistry SL Y2","blocks":[4]},{"course":"DP Sports, Exercise & Health Science SL Year 1","blocks":[3,5]},{"course":"DP Sports, Exercise & Health Science SL Year 2","blocks":[1]}],"Heather Price":[{"course":"DP Economics HL - Year 1","blocks":[5]},{"course":"DP Economics HL - Year 2","blocks":[2]},{"course":"DP Economics SL - Year 2","blocks":[3]}],"Rocio Rodriguez del Rio":[{"course":"DP Spanish B HL - Year 1","blocks":[2]},{"course":"DP Spanish B HL - Year 2","blocks":[6]},{"course":"DP Spanish B SL - Year 1","blocks":[2]},{"course":"DP Spanish B SL - Year 2","blocks":[6]},{"course":"DP Spanish ab initio SL - Year 2","blocks":[5]},{"course":"Spanish I","blocks":[1,3]}],"Brenda Robinette":[{"course":"DP English Literature HL - Year 2","blocks":[1,3,6]},{"course":"DP Literary Arts Y1","blocks":[5]}],"Luanne Sailors":[{"course":"Directed Studies","blocks":[1,2,3,4,5,6]}],"Randall Siefker":[{"course":"DP History HL - Year 1","blocks":[4]},{"course":"Modern World History","blocks":[1,2,3]}],"Deborah Soellner":[{"course":"Biology HL","blocks":[3,5]},{"course":"DP Environmental Systems and Societies SL Y1","blocks":[1]},{"course":"DP Environmental Systems and Societies SL Y2","blocks":[4,6]}],"Natalie Thomas":[{"course":"English 10","blocks":[2,6]},{"course":"English 9","blocks":[3,4,5]}],"KG Walker":[{"course":"Math 9 SL","blocks":[4]},{"course":"Maths SL 10","blocks":[2,3,5,6]}],"Noelia Warnette-Jones":[{"course":"DP Dance HL Y1","blocks":[2]},{"course":"DP Dance HL Y2","blocks":[2]},{"course":"Dance Composition","blocks":[2]},{"course":"Dance Techniques and Performance","blocks":[2]},{"course":"Dance for Athletes","blocks":[1,3,6]},{"course":"Theatre Arts","blocks":[4]}],"Andrea Weaver":[{"course":"DP Math HL: Analysis and Approaches Y1","blocks":[3]},{"course":"Math 10 HL","blocks":[1]},{"course":"Maths HL 10","blocks":[2,6]},{"course":"Multivariable Calculus","blocks":[5]}],"Karla Webb":[{"course":"DP Mathematics HL: Applications and Interpretations Y2","blocks":[6]},{"course":"Maths SL 11","blocks":[1,3,4]},{"course":"Statistics Math 12","blocks":[5]}],"Daria West":[{"course":"DP English Literature HL - Year 1","blocks":[2]},{"course":"DP English Literature SL - Year 1","blocks":[4,6]},{"course":"DP Literature SL Y1","blocks":[1]},{"course":"English 10","blocks":[5]}],"Terrance Wilson":[{"course":"DP English Literature HL - Year 1","blocks":[1,6]},{"course":"DP English Literature HL - Year 2","blocks":[2]},{"course":"DP English Literature SL - Year 2","blocks":[3,4]}]}};
+const STORE_KEY = 'lausanne-weekly-agenda-v2';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DOWS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const pad = n => String(n).padStart(2, '0');
@@ -191,11 +197,11 @@ const $ = id => document.getElementById(id);
 /* ---------- state ---------- */
 const EXAMPLE_WEEK = '2026-10-19';
 const EXAMPLE = {
-  division: 'US', course: 'English 9 (example)', periods: [1, 2, 6], showTimes: true,
+  division: 'US', teacher: '', course: 'English 9 (example)', periods: [1, 2, 6], showTimes: true,
   signoff: 'Best,\nMs. Example',
   week: EXAMPLE_WEEK,
   weeks: {
-    [EXAMPLE_WEEK]: {
+    ['US|English 9 (example)|' + EXAMPLE_WEEK]: {
       intro: '<p>Hello, 9th graders! I hope everyone had a great weekend. Here is our plan for the week.</p>',
       extra: '',
       closing: '<p>Looking forward to seeing you on Monday!</p>',
@@ -213,7 +219,9 @@ if (!DIVISIONS[state.division]) state.division = 'US';
 if (!state.week) state.week = mondayOf(iso(new Date()));
 function load() { try { const s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* storage blocked */ } }
-const weekData = () => (state.weeks[state.week] ||= { intro: '', extra: '', closing: '', groups: {} });
+// each course keeps its own plan for each week
+const weekKey = () => `${state.division}|${state.course.trim()}|${state.week}`;
+const weekData = () => (state.weeks[weekKey()] ||= { intro: '', extra: '', closing: '', groups: {} });
 
 /* ---------- rotation math ---------- */
 const div = () => DIVISIONS[state.division];
@@ -374,6 +382,11 @@ function linkBox(done) {
 function renderSetup() {
   $('division').innerHTML = Object.entries(DIVISIONS).map(([k, d]) => `<option value="${k}">${d.name}</option>`).join('');
   $('division').value = state.division;
+  const list = TEACHERS[state.division] || {};
+  $('teacher').innerHTML = '<option value="">Choose your name…</option>' + Object.keys(list).map(t => `<option${t === state.teacher ? ' selected' : ''}>${esc(t)}</option>`).join('') + '<option value="">I’m not listed</option>';
+  const courses = list[state.teacher] || [];
+  $('pickWrap').hidden = !courses.length;
+  $('pick').innerHTML = '<option value="">Choose a course…</option>' + courses.map((c, i) => `<option value="${i}"${c.course === state.course ? ' selected' : ''}>${esc(c.course)} (${esc(plist(c.blocks))})</option>`).join('');
   $('course').value = state.course;
   $('signoff').value = state.signoff;
   $('showTimes').checked = !!state.showTimes;
@@ -463,8 +476,21 @@ $('copyBtn').onclick = async () => {
 };
 
 /* ---------- wiring ---------- */
-$('division').addEventListener('change', e => { state.division = e.target.value; state.periods = []; save(); renderSetup(); renderGroups(); renderPreview(); });
+$('division').addEventListener('change', e => { state.division = e.target.value; state.teacher = ''; state.periods = []; save(); renderSetup(); renderWeek(); renderPreview(); });
 $('course').addEventListener('input', e => { state.course = e.target.value; save(); renderPreview(); });
+$('course').addEventListener('change', () => { renderWeek(); renderPreview(); });
+function pickCourse(c) {
+  state.course = c.course; state.periods = [...c.blocks];
+  save(); renderSetup(); renderWeek(); renderPreview();
+}
+$('teacher').addEventListener('change', e => {
+  state.teacher = e.target.value;
+  const courses = (TEACHERS[state.division] || {})[state.teacher] || [];
+  if (courses.length === 1) { pickCourse(courses[0]); return; }
+  save(); renderSetup();
+  if (courses.length) $('pick').focus();
+});
+$('pick').addEventListener('change', e => { const c = ((TEACHERS[state.division] || {})[state.teacher] || [])[+e.target.value]; if (c) pickCourse(c); });
 $('signoff').addEventListener('input', e => { state.signoff = e.target.value; save(); renderPreview(); });
 $('showTimes').addEventListener('change', e => { state.showTimes = e.target.checked; save(); renderPreview(); });
 ['intro', 'extra', 'closing'].forEach(k => richField($(k), () => weekData()[k], v => { weekData()[k] = v; }));
@@ -477,7 +503,7 @@ $('clearWeek').onclick = () => {
   const b = $('clearWeek');
   if (!clearArmed) { clearArmed = true; b.textContent = 'Click again to clear this week'; setTimeout(() => { clearArmed = false; b.textContent = 'Clear this week'; }, 4000); return; }
   clearArmed = false; b.textContent = 'Clear this week';
-  delete state.weeks[state.week]; save(); renderWeek(); renderPreview();
+  delete state.weeks[weekKey()]; save(); renderWeek(); renderPreview();
 };
 
 renderSetup();
