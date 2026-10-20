@@ -539,16 +539,17 @@ function renderGroups() {
     body.addEventListener('focusin', e => { if (e.target.classList?.contains('rich')) last = e.target; });
     body.append(toolbar(() => last || body.querySelector('.rich')));
     const shared = sharedBlocks(g, data);
-    if (data.splits.length && shared.length) {
-      const h4 = document.createElement('div'); h4.className = 'split-head'; h4.textContent = plist(shared);
-      body.append(h4);
-    }
-    if (shared.length) fields(body, data, `${g.key}`, heading(g));
-    data.splits.forEach((s, si) => {
+    sections(g, data).forEach(sec => {
+      if (sec.split < 0) {
+        if (data.splits.length) { const h4 = document.createElement('div'); h4.className = 'split-head'; h4.textContent = plist(sec.blocks); body.append(h4); }
+        fields(body, data, `${g.key}`, heading(g));
+        return;
+      }
+      const s = sec.obj, si = sec.split;
       const wrap = document.createElement('div'); wrap.className = 'split';
-      wrap.innerHTML = `<div class="split-head"><span>${esc(plist(s.blocks))} only</span><button type="button" class="ghost">Remove</button></div>`;
+      wrap.innerHTML = `<div class="split-head"><span>${esc(plist(sec.blocks))} only</span><button type="button" class="ghost">Remove</button></div>`;
       wrap.querySelector('button').onclick = () => { data.splits.splice(si, 1); save(); renderGroups(); renderPreview(); };
-      fields(wrap, s, `${g.key}-s${si}`, `${plist(s.blocks)} in ${heading(g)}`);
+      fields(wrap, s, `${g.key}-s${si}`, `${plist(sec.blocks)} in ${heading(g)}`);
       body.append(wrap);
     });
     if (shared.length > 1 || (shared.length && data.splits.length)) body.append(splitPicker(g, data, shared));
@@ -562,6 +563,18 @@ function meetHTML(g) {
   const days = g.meetings.filter(m => m.list.length).map(m => `<span class="meet-day">${short(m.date)} ${dayPill(m.date)} ${m.list.map(x => `<span class="blk${inkOn(D.blockColor[x.block]) !== '#ffffff' ? ' light' : ''}" style="${blockStyle(x.block)}">${D.short}${x.block} <small>${D.times[x.slot]}</small></span>`).join(' ')}</span>`);
   const off = g.skipped.map(s => `<span class="meet-day">${D.short}${s.block} no class ${short(s.date)}</span>`);
   return `<div class="meet">${days.concat(off).join('')}</div>`;
+}
+
+// The main plan and any separate plans, in the order their blocks meet
+// (e.g. on a day running 5, 6, 7, 3: Blocks 5, 6, 7 first, then Block 3 only).
+function sections(g, data) {
+  const pos = b => { for (let i = 0; i < g.meetings.length; i++) { const x = g.meetings[i].list.find(x => x.block === b); if (x) return i * 100 + x.slot; } return 1e6; };
+  const byPos = bs => [...bs].sort((a, b) => pos(a) - pos(b));
+  const out = [];
+  const shared = sharedBlocks(g, data);
+  if (shared.length) out.push({ blocks: byPos(shared), obj: data, split: -1 });
+  (data.splits || []).forEach((s, i) => { if (s.blocks.length) out.push({ blocks: byPos(s.blocks), obj: s, split: i }); });
+  return out.sort((a, b) => pos(a.blocks[0]) - pos(b.blocks[0]));
 }
 
 function fields(container, obj, idBase, about) {
@@ -620,13 +633,8 @@ function agendaHTML() {
     h += `<hr><p><strong>${esc(heading(g))}</strong>`;
     if (state.showTimes) h += `<br><em>${esc(meetLine(g))}</em>`;
     h += '</p>';
-    const splits = (data.splits || []).filter(s => s.blocks.length);
-    const shared = sharedBlocks(g, data);
-    if (!splits.length) h += fieldsHTML(data);
-    else {
-      if (shared.length) h += `<p><strong><u>${esc(plist(shared))}</u></strong></p>` + fieldsHTML(data);
-      splits.forEach(s => { h += `<p><strong><u>${esc(plist(s.blocks))}</u></strong></p>` + fieldsHTML(s); });
-    }
+    if (!(data.splits || []).some(s => s.blocks.length)) h += fieldsHTML(data);
+    else sections(g, data).forEach(sec => { h += `<p><strong><u>${esc(plist(sec.blocks))}</u></strong></p>` + fieldsHTML(sec.obj); });
   });
   if (!isEmpty(w.closing)) h += '<hr>' + w.closing;
   if (state.signoff.trim()) h += `<p>${esc(state.signoff.trim()).replace(/\n/g, '<br>')}</p>`;
@@ -647,7 +655,7 @@ function dueHTML(gs, w) {
   });
   const dates = Object.keys(byDate).sort();
   if (!dates.length) return '';
-  const items = dates.flatMap(d => byDate[d].map(e => `<li><strong>${short(d)}</strong> (${esc(plist([...e.blocks].sort((x, y) => x - y)))}): ${oneLine(e.html)}</li>`));
+  const items = dates.flatMap(d => byDate[d].map(e => `<li><strong>${short(d)}</strong> (${esc(plist(e.blocks))}): ${oneLine(e.html)}</li>`));
   return `<hr><p><strong>Due this week</strong></p><ul>${items.join('')}</ul>`;
 }
 // fold paragraphs and bullets into one line for the due list, keeping links and bold
