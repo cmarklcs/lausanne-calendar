@@ -146,10 +146,7 @@ button.icon { padding: 6px 10px; line-height: 1; }
         <label class="f" id="pickWrap">Course<select id="pick"></select></label>
         <label class="f">Course name as students see it<input type="text" id="course" placeholder="e.g. English 9"></label>
       </div>
-      <label class="f" id="modeWrap">Plan by<select id="msMode">
-        <option value="day">Rotation day: one plan per school day</option>
-        <option value="lesson">Lesson: each block moves through lessons at its own pace</option>
-      </select></label>
+      <label class="f" id="modeWrap">Plan by<select id="msMode"></select></label>
       <div class="f"><span id="periodsLabel">Periods you teach this course</span><div class="periods" id="periods"></div></div>
       <label class="f" style="display:flex;gap:8px;align-items:center;font-weight:400;color:var(--fg)"><input type="checkbox" id="dueList"> Start the post with a “Due this week” list, by day</label>
       <label class="f" style="display:flex;gap:8px;align-items:center;font-weight:400;color:var(--fg)"><input type="checkbox" id="showTimes"> Add class times under each heading</label>
@@ -268,6 +265,7 @@ if (!DIVISIONS[state.division]) state.division = 'US';
 if (!state.week) state.week = mondayOf(iso(new Date()));
 state.skips ||= {};
 state.msMode ||= 'day';
+state.usMode ||= 'day';
 // older saves: times were on by default; the simpler post leaves them off and adds the due list
 if (state.v !== 3) { state.showTimes = false; state.dueList = true; state.v = 3; }
 function load() { try { const s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
@@ -333,7 +331,13 @@ function dayGroups() {
     skipped: meetingsOn(date, true).filter(m => m.skipped).map(m => ({ date, block: m.block })) }))
     .filter(g => g.meetings[0].list.length || g.skipped.length);
 }
-const mode = () => div().grouping === 'pair' ? 'pair' : state.msMode;
+// Upper School can plan each day separately (default) or by Blue/Gold pair; Middle School by day or by lesson
+const MODES = {
+  US: [['day', 'Each day: one plan per school day'], ['pair', 'Blue/Gold pair: one plan for each two-day pair']],
+  MS: [['day', 'Rotation day: one plan per school day'], ['lesson', 'Lesson: each block moves through lessons at its own pace']]
+};
+const modeKey = () => state.division === 'US' ? 'usMode' : 'msMode';
+const mode = () => state[modeKey()];
 const groups = () => !taught().length ? [] : mode() === 'pair' ? pairGroups() : mode() === 'day' ? dayGroups() : lessonGroups();
 
 /* ---------- headings ---------- */
@@ -347,11 +351,11 @@ function dateRange(dates) {
 }
 function heading(g) {
   const D = div();
-  if (D.grouping === 'pair') {
+  if (mode() === 'pair') {
     const days = g.dates.map(d => D.rotation[d]);
     return `${D.dayLabel} ${days.join('–')} · ${dateRange(g.dates)} (${plist(taught())})`;
   }
-  if (mode() === 'day') { const d = fromIso(g.dates[0]); return `${DOWS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} · ${D.rotation[g.dates[0]]}${g.meetings[0].list.length ? ` (${plist(g.meetings[0].list.map(x => x.block))})` : ''}`; }
+  if (mode() === 'day') { const d = fromIso(g.dates[0]); return `${DOWS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} · ${D.dayName(D.rotation[g.dates[0]])}${g.meetings[0].list.length ? ` (${plist(g.meetings[0].list.map(x => x.block))})` : ''}`; }
   return g.meetings.map(m => { const d = fromIso(m.date); return `${DOWS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} (${plist(m.list.map(x => x.block))})`; }).join(' / ');
 }
 function meetLine(g) {
@@ -498,8 +502,8 @@ function renderSetup() {
   $('signoff').value = state.signoff;
   $('showTimes').checked = !!state.showTimes;
   $('dueList').checked = state.dueList !== false;
-  $('modeWrap').hidden = div().grouping === 'pair';
-  $('msMode').value = state.msMode;
+  $('msMode').innerHTML = MODES[state.division].map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+  $('msMode').value = mode();
   $('periodsLabel').textContent = `${div().unit}s you teach this course`;
   $('periods').innerHTML = div().blocks.map(b => { const c = div().blockColor[b]; return `<label style="--chip:${c};--chip-ink:${inkOn(c)};--chip-edge:${c}"><input type="checkbox" value="${b}" ${state.periods.includes(b) ? 'checked' : ''}>${div().short}${b}</label>`; }).join('');
   $('periods').querySelectorAll('input').forEach(inp => inp.addEventListener('change', () => {
@@ -712,7 +716,7 @@ $('teacher').addEventListener('change', e => {
 });
 $('pick').addEventListener('change', e => { const c = ((TEACHERS[state.division] || {})[state.teacher] || [])[+e.target.value]; if (c) pickCourse(c); });
 $('signoff').addEventListener('input', e => { state.signoff = e.target.value; save(); renderPreview(); });
-$('msMode').addEventListener('change', e => { state.msMode = e.target.value; save(); renderGroups(); renderPreview(); });
+$('msMode').addEventListener('change', e => { state[modeKey()] = e.target.value; save(); renderGroups(); renderPreview(); });
 $('dueList').addEventListener('change', e => { state.dueList = e.target.checked; save(); renderPreview(); });
 $('showTimes').addEventListener('change', e => { state.showTimes = e.target.checked; save(); renderPreview(); });
 ['intro', 'extra', 'closing'].forEach(k => richField($(k), () => weekData()[k], v => { weekData()[k] = v; }));
